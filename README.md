@@ -17,6 +17,10 @@ For example
 
 It automatically detects these files once you give it the filetype to look for and which command to build, please see [Configuration](##Configuration) for more information.
 
+## Demo
+See the plugin in action below:
+
+[![asciicast](https://asciinema.org/a/672407.svg)](https://asciinema.org/a/672407)
 
 ## Installation
 For Lazy   
