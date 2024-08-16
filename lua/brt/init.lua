@@ -71,7 +71,6 @@ function brt.check_and_test()
 end
 
 function brt.setup_keymap()
-    print("Setup of brt called")
     -- Map the function to <Leader>b
     vim.api.nvim_set_keymap('n', brt_config.keymaps["build"], '<cmd>lua require("brt").check_and_build()<CR>',
         { noremap = true, silent = true })
