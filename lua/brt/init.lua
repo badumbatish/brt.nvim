@@ -2,7 +2,7 @@ local brt_config = require("brt.config")
 local brt = {}
 brt.terminal_command = "bot :terminal"
 
-function brt.build_terminal_command(command)
+function brt.build_terminal_command(current_dir, command)
     return brt.terminal_command .. " cd " .. vim.fn.shellescape(current_dir) .. " && " .. command
 end
 
@@ -19,7 +19,7 @@ function brt.check_and_build()
                 print(generic_build_error .. ", no build command found for " .. project.name .. " project.")
                 return
             else
-                vim.cmd(brt.build_terminal_command(project.build_command))
+                vim.cmd(brt.build_terminal_command(current_dir, project.build_command))
                 return
             end
         end
@@ -40,7 +40,7 @@ function brt.check_and_run()
                 print(generic_run_error .. ", no test command found for " .. project.name .. " project.")
                 return
             else
-                vim.cmd(brt.build_terminal_command(project.run_command))
+                vim.cmd(brt.build_terminal_command(current_dir, project.run_command))
                 return
             end
         end
@@ -61,7 +61,7 @@ function brt.check_and_test()
                 print(generic_test_error .. ", no test command found for " .. project.name .. " project.")
                 return
             else
-                vim.cmd(brt.build_terminal_command(project.test_command))
+                vim.cmd(brt.build_terminal_command(current_dir, project.test_command))
                 return
             end
         end
