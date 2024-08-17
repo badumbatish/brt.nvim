@@ -59,8 +59,8 @@ local project_map =  {
 
    ["CMakeLists.txt"] = {
 
-+       build_command = "cmake -G ninja -S . -B build -j4 && cmake --build build -j4",
--       build_command = "cmake -S . -B build -j4 && cmake --build build -j4",
++       build_command = "cmake -G ninja -S . -B build && cmake --build build -j4",
+-       build_command = "cmake -S . -B build && cmake --build build -j4",
 
         run_command = "",
         test_command = "ctest --test-dir build",

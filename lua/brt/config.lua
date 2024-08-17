@@ -15,7 +15,7 @@ brt_config.project_map = {
         name = "Node.js"
     },
     ["CMakeLists.txt"] = {
-        build_command = "cmake -S . -B build -j4 && cmake --build build -j4",
+        build_command = "cmake -S . -B build && cmake --build build -j4",
         run_command = "",
         test_command = "ctest --test-dir build",
         name = "CMake"
