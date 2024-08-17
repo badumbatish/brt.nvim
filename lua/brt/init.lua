@@ -20,6 +20,7 @@ function brt.check_and_build()
                 return
             else
                 vim.cmd(brt.build_terminal_command(current_dir, project.build_command))
+                vim.api.nvim_feedkeys('G', 'n', true)
                 return
             end
         end
@@ -41,6 +42,7 @@ function brt.check_and_run()
                 return
             else
                 vim.cmd(brt.build_terminal_command(current_dir, project.run_command))
+                vim.api.nvim_feedkeys('G', 'n', true)
                 return
             end
         end
@@ -62,6 +64,7 @@ function brt.check_and_test()
                 return
             else
                 vim.cmd(brt.build_terminal_command(current_dir, project.test_command))
+                vim.api.nvim_feedkeys('G', 'n', true)
                 return
             end
         end
