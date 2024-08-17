@@ -22,6 +22,15 @@ See the plugin in action below:
 
 [![asciicast](https://asciinema.org/a/672407.svg)](https://asciinema.org/a/672407)
 
+## Keymaps
+
+The default keymaps are:
+```
+<leader>b - Build
+<leader>r - Run (the executable)
+<leader>t - Test
+```
+
 ## Installation
 For Lazy   
 ```lua  
