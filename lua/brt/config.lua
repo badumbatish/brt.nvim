@@ -1,5 +1,12 @@
 local brt_config = {}
 
+-- Map of directories to their build commands
+
+brt_config.directory_map = {
+    -- Add more directories here
+}
+
+
 -- Map of project files to their build commands
 brt_config.project_map = {
     ["Cargo.toml"] = {

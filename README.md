@@ -15,6 +15,8 @@ For example
 
 - If you have a `CMakeLists.txt`, pressing `<leader>b` will run `cmake -S . -B build && cmake --build build -j4` in the terminal.
 
+- If you have a special workspace directory that uses `CMakeLists.txt`, you can configure the special directory to use a different command instead, see [Configuration](##Configuration) for more information.
+
 It automatically detects these files once you give it the filetype to look for and which command to build, please see [Configuration](##Configuration) for more information.
 
 ## Demo
@@ -53,6 +55,7 @@ and provide your own configuration with the brt.set_* functions found in `init.l
 
 You only need to provide the configuration that you want to change. The rest will be set to the default values.
 
+### File-type based configuration
 For example, if you want to change a CMake project to use `ninja` instead of the default `make`, you only need to do the following in your lua configuration file,
 where the green text is the new configuration and the red text is the default configuration.
 ```diff
@@ -72,6 +75,25 @@ local project_map =  {
 require('brt').set_project_map(project_map)
 require('brt').setup()
 ```
+
+### Directory based configuration
+If you want to configure not based on the file type such as `CMakeLists.txt` but on the directory instead, add the `/` on your project\_map key.
+
+Keys ending with / means that it is a directory, and will be considered first, then comes the file types matching
+```diff
+
+local project_map =  {
+
++   ["sammine-lang/"] = {
+        ...
+    }
+    }
+
+require('brt').set_project_map(project_map)
+require('brt').setup()
+```
+
+
 You need to call `brt.set_*` functions before calling `require('brt').setup()` in your `init.lua` file.
 
 Calling `brt.set_*` functions after `require('brt').setup()` will not work since `setup()` will ignore some part of the overridden configuration.

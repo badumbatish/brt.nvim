@@ -1,4 +1,6 @@
 local brt_config = require("brt.config")
+local brt_util = require("brt.util")
+
 local brt = {}
 brt.terminal_command = "bot :terminal"
 
@@ -6,23 +8,38 @@ function brt.build_terminal_command(current_dir, command)
     return brt.terminal_command .. " cd " .. vim.fn.shellescape(current_dir) .. " && " .. command
 end
 
+function brt.execute_terminal_command(current_dir, command, error_msg)
+    if command == "" then
+        print(error_msg)
+        return
+    else
+        vim.cmd(brt.build_terminal_command(current_dir, command))
+        vim.api.nvim_feedkeys('G', 'n', true)
+        return
+    end
+end
+
 -- Function to check for project files and run appropriate build command
 function brt.check_and_build()
     local current_dir = vim.loop.cwd()
     local generic_build_error = "Cannot perform `build` command"
 
+    for dir, project in pairs(brt_config.directory_map) do
+        if vim.fn.match(current_dir, dir) ~= -1 then
+            print("Found " .. project.name .. " project. Building...")
+            local error_msg = generic_build_error .. ", no build command found for " .. project.name .. " project."
+            brt.execute_terminal_command(current_dir, project.build_command, error_msg)
+            return
+        end
+    end
+
     for file, project in pairs(brt_config.project_map) do
         local file_path = current_dir .. "/" .. file
         if vim.fn.filereadable(file_path) == 1 then
             print("Found " .. project.name .. " project. Building...")
-            if project.build_command == "" then
-                print(generic_build_error .. ", no build command found for " .. project.name .. " project.")
-                return
-            else
-                vim.cmd(brt.build_terminal_command(current_dir, project.build_command))
-                vim.api.nvim_feedkeys('G', 'n', true)
-                return
-            end
+            local error_msg = generic_build_error .. ", no build command found for " .. project.name .. " project."
+            brt.execute_terminal_command(current_dir, project.build_command, error_msg)
+            return
         end
     end
 
@@ -32,19 +49,21 @@ end
 function brt.check_and_run()
     local current_dir = vim.loop.cwd()
     local generic_run_error = "Cannot perform `run` command"
+    for dir, project in pairs(brt_config.directory_map) do
+        if vim.fn.match(current_dir, dir) ~= -1 then
+            print("Found " .. project.name .. " project. Running potential executable...")
+            local error_msg = generic_run_error .. ", no run command found for " .. project.name .. " project."
+            brt.execute_terminal_command(current_dir, project.run_command, error_msg)
+            return
+        end
+    end
 
     for file, project in pairs(brt_config.project_map) do
         local file_path = current_dir .. "/" .. file
         if vim.fn.filereadable(file_path) == 1 then
             print("Found " .. project.name .. " project. Running potential executable...")
-            if project.run_command == "" then
-                print(generic_run_error .. ", no test command found for " .. project.name .. " project.")
-                return
-            else
-                vim.cmd(brt.build_terminal_command(current_dir, project.run_command))
-                vim.api.nvim_feedkeys('G', 'n', true)
-                return
-            end
+            local error_msg = generic_run_error .. ", no run command found for " .. project.name .. " project."
+            brt.execute_terminal_command(current_dir, project.run_command, error_msg)
         end
     end
 
@@ -54,19 +73,21 @@ end
 function brt.check_and_test()
     local current_dir = vim.loop.cwd()
     local generic_test_error = "Cannot perform `test` command"
+    for dir, project in pairs(brt_config.directory_map) do
+        if vim.fn.match(current_dir, dir) ~= -1 then
+            print("Found " .. project.name .. " project. Running potential executable...")
+            local error_msg = generic_test_error .. ", no test command found for " .. project.name .. " project."
+            brt.execute_terminal_command(current_dir, project.test_command, error_msg)
+            return
+        end
+    end
 
     for file, project in pairs(brt_config.project_map) do
         local file_path = current_dir .. "/" .. file
         if vim.fn.filereadable(file_path) == 1 then
             print("Found " .. project.name .. " project. Testing...")
-            if project.test_command == "" then
-                print(generic_test_error .. ", no test command found for " .. project.name .. " project.")
-                return
-            else
-                vim.cmd(brt.build_terminal_command(current_dir, project.test_command))
-                vim.api.nvim_feedkeys('G', 'n', true)
-                return
-            end
+            local error_msg = generic_test_error .. ", no test command found for " .. project.name .. " project."
+            brt.execute_terminal_command(current_dir, project.test_command, error_msg)
         end
     end
 
@@ -98,7 +119,11 @@ end
 function brt.set_project_map(project_map)
     -- override whatever project_map over to the brt_config.project_map
     for key, value in pairs(project_map) do
-        brt_config.project_map[key] = value
+        if brt_util.str_ends_with(key, "/") then
+            brt_config.directory_map[brt_util.str_suffix_strip(key, "/")] = value
+        else
+            brt_config.project_map[key] = value
+        end
     end
 end
 
