@@ -17,7 +17,7 @@ brt_config.project_map = {
     ["CMakeLists.txt"] = {
         build_command = "cmake -S . -B build && cmake --build build -j4",
         run_command = "",
-        test_command = "ctest --test-dir build",
+        test_command = "ctest --test-dir build --output-on-failure",
         name = "CMake"
     },
     ["Makefile"] = {
@@ -34,6 +34,7 @@ brt_config.keymaps = {
     ["build"] = "<leader>b",
     ["run"] = "<leader>r",
     ["test"] = "<leader>t",
+    ["quit_tab"] = "<leader>q",
 }
 
 

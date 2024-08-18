@@ -29,6 +29,7 @@ The default keymaps are:
 <leader>b - Build
 <leader>r - Run (the executable)
 <leader>t - Test
+<leader>q - Quit the brt tab (it acts as a :q)
 ```
 
 ## Installation

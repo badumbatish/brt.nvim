@@ -59,7 +59,7 @@ function brt.check_and_test()
         local file_path = current_dir .. "/" .. file
         if vim.fn.filereadable(file_path) == 1 then
             print("Found " .. project.name .. " project. Testing...")
-            if project.run_command == "" then
+            if project.test_command == "" then
                 print(generic_test_error .. ", no test command found for " .. project.name .. " project.")
                 return
             else
@@ -81,6 +81,7 @@ function brt.setup_keymap()
         { noremap = true, silent = true })
     vim.api.nvim_set_keymap('n', brt_config.keymaps["test"], '<cmd>lua require("brt").check_and_test()<CR>',
         { noremap = true, silent = true })
+    vim.api.nvim_set_keymap('n', brt_config.keymaps["quit_tab"], '<cmd>q<CR>', { noremap = true, silent = true })
 end
 
 function brt.setup()
