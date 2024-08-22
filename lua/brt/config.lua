@@ -33,6 +33,12 @@ brt_config.project_map = {
         test_command = "",
         name = "Make"
     },
+    ["mix.exs"] = {
+        build_command = "mix compile",
+        run_command = "",
+        test_command = "mix test",
+        name = "Elixir Mix"
+    }
 
     -- Add more project types here
 }
