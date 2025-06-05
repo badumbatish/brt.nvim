@@ -19,7 +19,7 @@ function brt.handle_quit()
 	local buftype = vim.api.nvim_get_option_value('buftype', { buf = 0 })
 	-- print("Keymap triggered!")
 	if buftype == "terminal" then
-		vim.cmd("bd! | close")
+		vim.cmd("bd!")
 	else
 		vim.cmd("q")
 	end
