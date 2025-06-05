@@ -28,7 +28,7 @@ end
 function brt.populate_data(current_dir)
 	for file, filetype_config in pairs(brt_config.filetype_map) do
 		local file_path = current_dir .. "/" .. file
-		if vim.fn.filereadable(file_path) == 1 then
+		if vim.fn.filereadable(file_path) then
 			return filetype_config
 		end
 	end
@@ -68,6 +68,8 @@ function brt.check_and_execute(op)
 		default = prev_data
 			[cmd_key] or ""
 	})
+
+	if (prev_data[cmd_key] == "") then return end
 	tbl[current_dir] = prev_data
 
 	brt_util.save_table(tbl)
