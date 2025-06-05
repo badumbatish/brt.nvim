@@ -13,9 +13,9 @@ For example:
 
 - If you have a `Makefile`, pressing `<leader>b` will run `make -j4` in the terminal.
 
-- If you have a `CMakeLists.txt`, pressing `<leader>b` will run `cmake -S . -B build && cmake --build build -j4` in the terminal.
+- If you have a `CMakeLists.txt`, pressing `<leader>b` will run `cmake --build build -j4` in the terminal.
 
-It automatically detects these files once you give it the filetype to look for and which command to build, please see [Configuration](##Configuration) for more information.
+It automatically detects these files once you give it the filetype to look for and which command to build, please see [Configuration](#Configuration) for more information.
 
 It also remembers every prompt you give it for all 4 commands, committed to your directory.
 ## Demo
@@ -88,9 +88,9 @@ return {
             test_command = "npm run test",
         },
         ["CMakeLists.txt"] = {
-            build_command = "cmake -S . -B build && cmake --build build -j4",
+            build_command = "cmake --build build -j4",
             run_command = "./build/",
-            debug_command = "",
+            debug_command = "lldb -- ./build/",
             test_command = "ctest --test-dir build --output-on-failure",
         },
         ["Makefile"] = {
