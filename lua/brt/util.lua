@@ -37,13 +37,23 @@ function util.load_table()
 		local ok, result = pcall(vim.fn.json_decode, content)
 		if ok then return result end
 	end
-	return nil
+	return {}
 end
 
 function util.create_file_if_empty()
 	if vim.fn.filereadable(util.data_file) == 0 then
 		vim.fn.writefile({}, util.data_file)
 	end
+end
+
+function util.table_get(tbl, key)
+	for k, v in pairs(tbl) do
+		if vim.fn.match(k, key) ~= -1 then
+			return v
+		end
+	end
+
+	return nil
 end
 
 return util

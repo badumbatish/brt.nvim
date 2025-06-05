@@ -1,6 +1,6 @@
 # BRT
 
-Hi everyone! Welcome to my first plugin: BRT (Build, Run, and Test)
+Hi everyone! Welcome to my first plugin: BRT (Build, Run, and Test, (and Debug))
 
 The plugin helps automate/alleviate the process of building, running and testing your code.
 
@@ -8,17 +8,16 @@ Instead of having to type out the commands to build, run, and test your code, yo
 
 BRT will look inside your neovim-invoked directory and check for a match to run your commands.
 
-For example
+For example:
 - If your directory contains `Cargo.toml`, pressing `<leader>b` will run `cargo build` in the terminal.
 
 - If you have a `Makefile`, pressing `<leader>b` will run `make -j4` in the terminal.
 
 - If you have a `CMakeLists.txt`, pressing `<leader>b` will run `cmake -S . -B build && cmake --build build -j4` in the terminal.
 
-- If you have a special workspace directory that uses `CMakeLists.txt`, you can configure the special directory to use a different command instead, see [Configuration](##Configuration) for more information.
-
 It automatically detects these files once you give it the filetype to look for and which command to build, please see [Configuration](##Configuration) for more information.
 
+It also remembers every prompt you give it for all 4 commands, committed to your directory.
 ## Demo
 See the plugin in action below:
 
@@ -30,12 +29,13 @@ The default keymaps are:
 ```
 <leader>b - Build
 <leader>r - Run (the executable)
+<leader>d - Debug
 <leader>t - Test
 <leader>q - Quit the brt tab (it acts as a :q)
 ```
 
 ## Installation
-For Lazy   
+For lazy.nvim   
 ```lua  
 return {
  "badumbatish/brt.nvim",
@@ -47,62 +47,76 @@ return {
 ```
 
 ## Configuration
-You can also change how BRT invokes the command itself. Please see 
+You can also change 
 
-https://github.com/badumbatish/brt.nvim/blob/main/lua/brt/config.lua
+- The keymap used to invoke brt.nvim.
+- The keymap used as placeholder for different file types.
 
-and provide your own configuration with the brt.set_* functions found in `init.lua`
+The full fledged default is here (or you can check the most up to date at lua/brt/config.lua):
+```lua
 
-You only need to provide the configuration that you want to change. The rest will be set to the default values.
+return {
+    "badumbatish/brt.nvim",
+    -- -- Uncomment these two lines to contribute and develop
+    -- -- Remember to create Developer/nvim_proj and clone your fork
+    -- dir = "~/Developer/nvim_proj/brt.nvim",
+    -- dev = { true },
 
-### File-type based configuration
-For example, if you want to change a CMake project to use `ninja` instead of the default `make`, you only need to do the following in your lua configuration file,
-where the green text is the new configuration and the red text is the default configuration.
-```diff
-local project_map =  {
+    config = function()
 
-   ["CMakeLists.txt"] = {
+    local brt_config = {}
 
-+       build_command = "cmake -G ninja -S . -B build && cmake --build build -j4",
--       build_command = "cmake -S . -B build && cmake --build build -j4",
-
-        run_command = "",
-        test_command = "ctest --test-dir build",
-        name = "CMake"
+    brt_config.keymaps = {
+        ["build"] = "<leader>b",
+        ["run"] = "<leader>r",
+        ["test"] = "<leader>t",
+        ["debug"] = "<leader>d",
+        ["quit_tab"] = "<leader>q",
     }
-    }
 
-require('brt').set_project_map(project_map)
-require('brt').setup()
+    brt_config.filetype_map = {
+        ["Cargo.toml"] = {
+            build_command = "cargo build",
+            run_command = "cargo run",
+            debug_command = "",
+            test_command = "cargo test",
+        },
+        ["package.json"] = {
+            build_command = "npm install && npm run build",
+            run_command = "npm run start",
+            debug_command = "",
+            test_command = "npm run test",
+        },
+        ["CMakeLists.txt"] = {
+            build_command = "cmake -S . -B build && cmake --build build -j4",
+            run_command = "./build/",
+            debug_command = "",
+            test_command = "ctest --test-dir build --output-on-failure",
+        },
+        ["Makefile"] = {
+            build_command = "make -j4",
+            run_command = "make run",
+            debug_command = "",
+            test_command = "make test",
+        },
+        ["mix.exs"] = {
+            build_command = "mix compile",
+            run_command = "",
+            debug_command = "",
+            test_command = "mix test",
+        }
+
+        -- Add more project types here
+    }
+    require('brt').setup()
+end
+}
 ```
-
-### Directory based configuration
-If you want to configure not based on the file type such as `CMakeLists.txt` but on the directory instead, add the `/` on your project\_map key.
-
-Keys ending with / means that it is a directory, and will be considered first, then comes the file types matching
-```diff
-
-local project_map =  {
-
-+   ["sammine-lang/"] = {
-        ...
-    }
-    }
-
-require('brt').set_project_map(project_map)
-require('brt').setup()
-```
-
-
-You need to call `brt.set_*` functions before calling `require('brt').setup()` in your `init.lua` file.
-
-Calling `brt.set_*` functions after `require('brt').setup()` will not work since `setup()` will ignore some part of the overridden configuration.
 
 ## Contributions
 Please feel free to contribute to the plugin. I am open to suggestions and improvements.
 
 Potential todo list includes:
 - [ ] Add more project types: OCaml, Haskell, gleam, java, etc...
-- [ ] Add more command types: fmt, lint, combo  etc...
 - [ ] Non-stopping commands: run a series of commands and only stop if one fails
  

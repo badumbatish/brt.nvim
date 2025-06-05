@@ -4,137 +4,119 @@ local brt_util = require("brt.util")
 local brt = {}
 brt.terminal_command = "bot :terminal"
 
-function brt.build_terminal_command(current_dir, command)
+function brt.build_terminal_command(command)
+	local current_dir = vim.loop.cwd()
 	return brt.terminal_command .. " cd " .. vim.fn.shellescape(current_dir) .. " && " .. command
 end
 
-function brt.execute_terminal_command(current_dir, command, error_msg)
-	if command == "" then
-		print(error_msg)
-		return
-	else
-		vim.cmd(brt.build_terminal_command(current_dir, command))
-		vim.api.nvim_feedkeys('G', 'n', true)
-		return
-	end
-end
-
--- Function to check for project files and run appropriate build command
-function brt.check_and_build()
-	local current_dir = vim.loop.cwd()
-	local generic_build_error = "Cannot perform `build` command"
-
-	for dir, project in pairs(brt_config.directory_map) do
-		if vim.fn.match(current_dir, dir) ~= -1 then
-			print("Found " .. project.name .. " project. Building...")
-			local error_msg = generic_build_error .. ", no build command found for " .. project.name .. " project."
-			brt.execute_terminal_command(current_dir, project.build_command, error_msg)
-			return
-		end
-	end
-
-	for file, project in pairs(brt_config.project_map) do
-		local file_path = current_dir .. "/" .. file
-		if vim.fn.filereadable(file_path) == 1 then
-			print("Found " .. project.name .. " project. Building...")
-			local error_msg = generic_build_error .. ", no build command found for " .. project.name .. " project."
-			brt.execute_terminal_command(current_dir, project.build_command, error_msg)
-			return
-		end
-	end
-
-	print(generic_build_error .. ", no recognized project file found in the current neovim-opened directory.")
-end
-
-function brt.check_and_run()
-	local current_dir = vim.loop.cwd()
-	local generic_run_error = "Cannot perform `run` command"
-	for dir, project in pairs(brt_config.directory_map) do
-		if vim.fn.match(current_dir, dir) ~= -1 then
-			print("Found " .. project.name .. " project. Running potential executable...")
-			local error_msg = generic_run_error .. ", no run command found for " .. project.name .. " project."
-			brt.execute_terminal_command(current_dir, project.run_command, error_msg)
-			return
-		end
-	end
-
-	for file, project in pairs(brt_config.project_map) do
-		local file_path = current_dir .. "/" .. file
-		if vim.fn.filereadable(file_path) == 1 then
-			print("Found " .. project.name .. " project. Running potential executable...")
-			local error_msg = generic_run_error .. ", no run command found for " .. project.name .. " project."
-			brt.execute_terminal_command(current_dir, project.run_command, error_msg)
-		end
-	end
-
-	print(generic_run_error .. ", no recognized project file found in the current neovim-opened directory.")
-end
-
-function brt.check_and_test()
-	local current_dir = vim.loop.cwd()
-	local generic_test_error = "Cannot perform `test` command"
-	for dir, project in pairs(brt_config.directory_map) do
-		if vim.fn.match(current_dir, dir) ~= -1 then
-			print("Found " .. project.name .. " project. Running potential executable...")
-			local error_msg = generic_test_error .. ", no test command found for " .. project.name .. " project."
-			brt.execute_terminal_command(current_dir, project.test_command, error_msg)
-			return
-		end
-	end
-
-	for file, project in pairs(brt_config.project_map) do
-		local file_path = current_dir .. "/" .. file
-		if vim.fn.filereadable(file_path) == 1 then
-			print("Found " .. project.name .. " project. Testing...")
-			local error_msg = generic_test_error .. ", no test command found for " .. project.name .. " project."
-			brt.execute_terminal_command(current_dir, project.test_command, error_msg)
-		end
-	end
-
-	print(generic_test_error .. ", no recognized project file found in the current neovim-opened directory.")
+function brt.execute_terminal_command(command)
+	if command == "" then return end
+	vim.cmd(brt.build_terminal_command(command))
+	vim.api.nvim_feedkeys('G', 'n', true)
 end
 
 function brt.handle_quit()
-	local buftype = vim.api.nvim_buf_get_option(0, 'buftype')
+	local buftype = vim.api.nvim_get_option_value('buftype', { buf = 0 })
 	-- print("Keymap triggered!")
 	if buftype == "terminal" then
-		vim.cmd("bw!")
+		vim.cmd("bd! | close")
 	else
 		vim.cmd("q")
 	end
 end
 
-function brt.setup_keymap()
-	-- Map the function to <Leader>b
-	vim.api.nvim_set_keymap('n', brt_config.keymaps["build"], '<cmd>lua require("brt").check_and_build()<CR>',
+function brt.populate_data(current_dir)
+	for file, filetype_config in pairs(brt_config.filetype_map) do
+		local file_path = current_dir .. "/" .. file
+		if vim.fn.filereadable(file_path) == 1 then
+			return filetype_config
+		end
+	end
+
+	return {
+		build_command = "",
+		run_command = "",
+		test_command = "",
+		debug_command = ""
+	}
+end
+
+function brt.check_and_execute(op)
+	local valid_ops = {
+		build_command = "build_command",
+		run_command = "run_command",
+		test_command = "test_command",
+		debug_command = "debug_command",
+	}
+
+	local cmd_key = valid_ops[op]
+	if not cmd_key then
+		vim.notify("Invalid operation: " .. tostring(op), vim.log.levels.ERROR)
+		return
+	end
+
+	local current_dir = vim.loop.cwd()
+	local tbl = brt_util.load_table()
+	local prev_data = brt_util.table_get(tbl, current_dir)
+
+	if not prev_data then
+		prev_data = brt.populate_data(current_dir)
+	end
+
+	prev_data[cmd_key] = vim.fn.input({
+		prompt = "Change/Input to " .. op .. ": ",
+		default = prev_data
+			[cmd_key] or ""
+	})
+	tbl[current_dir] = prev_data
+
+	brt_util.save_table(tbl)
+	brt.execute_terminal_command(prev_data[cmd_key])
+end
+
+function brt.setup(opts)
+	brt_util.create_file_if_empty()
+	if opts and opts.keymaps then
+		brt.set_keymaps(opts.keymaps)
+	else
+		brt.set_keymaps(brt_config.keymaps)
+	end
+
+	if opts and opts.filetype_map then
+		brt.set_filetype_map(opts.project_map)
+	else
+		brt.set_filetype_map(brt_config.filetype_map)
+	end
+
+
+
+	vim.api.nvim_set_keymap('n', brt_config.keymaps["build"],
+		'<cmd>lua require("brt").check_and_execute("build_command")<CR>',
 		{ noremap = true, silent = true })
-	vim.api.nvim_set_keymap('n', brt_config.keymaps["run"], '<cmd>lua require("brt").check_and_run()<CR>',
+	vim.api.nvim_set_keymap('n', brt_config.keymaps["run"],
+		'<cmd>lua require("brt").check_and_execute("run_command")<CR>',
 		{ noremap = true, silent = true })
-	vim.api.nvim_set_keymap('n', brt_config.keymaps["test"], '<cmd>lua require("brt").check_and_test()<CR>',
+	vim.api.nvim_set_keymap('n', brt_config.keymaps["test"],
+		'<cmd>lua require("brt").check_and_execute("test_command")<CR>',
+		{ noremap = true, silent = true })
+	vim.api.nvim_set_keymap('n', brt_config.keymaps["debug"],
+		'<cmd>lua require("brt").check_and_execute("debug_command")<CR>',
 		{ noremap = true, silent = true })
 	vim.api.nvim_set_keymap('n', brt_config.keymaps["quit_tab"], '<cmd>lua require("brt").handle_quit()<CR>',
 		{ noremap = true, silent = true })
 end
 
-function brt.setup()
-	brt.setup_keymap()
-end
-
 function brt.set_keymaps(keymaps)
-	-- override whatever keymaps over to the brt_config.keymaps
+	-- override whatever mapping over to the brt_config.keymaps
 	for key, value in pairs(keymaps) do
 		brt_config.keymaps[key] = value
 	end
 end
 
-function brt.set_project_map(project_map)
-	-- override whatever project_map over to the brt_config.project_map
-	for key, value in pairs(project_map) do
-		if brt_util.str_ends_with(key, "/") then
-			brt_config.directory_map[brt_util.str_suffix_strip(key, "/")] = value
-		else
-			brt_config.project_map[key] = value
-		end
+function brt.set_filetype_map(filetype_map)
+	-- override whatever mapping over to the brt_config.filetype_map
+	for key, value in pairs(filetype_map) do
+		brt_config.filetype_map[key] = value
 	end
 end
 
