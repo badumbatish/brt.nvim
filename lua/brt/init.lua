@@ -130,9 +130,10 @@ function brt.check_and_execute(op)
 
     brt_util.save_table(tbl)
     brt.execute_terminal_command(prev_data[cmd_key])
-    if (valid_ops[op] == "build_command" or valid_ops[op] == "run_command") then
-      brt.lsp_to_quickfix("E", true)
-    end
+    -- TODO: this needs to wait until run or build is finished
+    -- if (valid_ops[op] == "build_command" or valid_ops[op] == "run_command") then
+    --   brt.lsp_to_quickfix("E", true)
+    -- end
 end
 
 function brt.setup(opts)
