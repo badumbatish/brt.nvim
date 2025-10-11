@@ -5,7 +5,10 @@ local brt = {}
 brt.terminal_command = "bot :terminal"
 
 function brt.build_terminal_command(command)
-    local current_dir = vim.loop.cwd()
+    local current_dir = vim.uv.cwd()
+    if not current_dir then
+        current_dir = "."
+    end
     return brt.terminal_command .. " cd " .. vim.fn.shellescape(current_dir) .. " && " .. command
 end
 
@@ -22,6 +25,55 @@ function brt.handle_quit()
         vim.cmd("bd!")
     else
         vim.cmd("q")
+    end
+end
+
+-- Convert LSP diagnostics to quickfix list
+-- severity_filter: 'E' for errors only, 'W' for warnings only, nil for all
+function brt.lsp_to_quickfix(severity_filter, is_silent)
+    local severity_map = nil
+    local buffer_scope = nil
+
+    if severity_filter == 'E' then
+        severity_map = vim.diagnostic.severity.ERROR
+        buffer_scope = nil
+    elseif severity_filter == 'W' then
+        severity_map = vim.diagnostic.severity.WARN
+        buffer_scope = 0
+    end
+
+    local diagnostics = vim.diagnostic.get(buffer_scope, severity_map and { severity = severity_map } or nil)
+    local qf_list = {}
+
+    for _, diagnostic in ipairs(diagnostics) do
+        local bufnr = diagnostic.bufnr or 0
+        local filename = vim.api.nvim_buf_get_name(bufnr)
+
+        -- Since we're filtering by severity, we know the type
+        local type = severity_filter or 'I'
+
+        table.insert(qf_list, {
+            filename = filename,
+            lnum = diagnostic.lnum + 1,  -- LSP is 0-indexed, quickfix is 1-indexed
+            col = diagnostic.col + 1,
+            type = type,
+            text = diagnostic.message,
+        })
+    end
+
+    -- Set the quickfix list
+    if #qf_list > 0 then
+        vim.fn.setqflist(qf_list, 'r')
+        if (not is_silent) then
+          vim.cmd('copen')
+        elseif (severity_filter == 'E')  then
+          vim.notify("Populated quickfix list of all errors")
+        else
+          vim.notify("Populated quickfix list of current buffer warnings")
+        end
+    else
+        local filter_msg = severity_filter and (" " .. (severity_filter == 'E' and "errors" or "warnings")) or "s"
+        vim.notify("No LSP diagnostic" .. filter_msg .. " found", vim.log.levels.INFO)
     end
 end
 
@@ -57,7 +109,7 @@ function brt.check_and_execute(op)
         return
     end
 
-    local current_dir = vim.loop.cwd()
+    local current_dir = vim.uv.cwd()
     local tbl = brt_util.load_table()
     local prev_data = brt_util.table_get(tbl, current_dir)
 
@@ -72,10 +124,15 @@ function brt.check_and_execute(op)
     })
 
     if (brt_util.only_spaces(prev_data[cmd_key])) then return end
-    tbl[current_dir] = prev_data
+    if current_dir then
+        tbl[current_dir] = prev_data
+    end
 
     brt_util.save_table(tbl)
     brt.execute_terminal_command(prev_data[cmd_key])
+    if (valid_ops[op] == "build_command" or valid_ops[op] == "run_command") then
+      brt.lsp_to_quickfix("E", true)
+    end
 end
 
 function brt.setup(opts)
@@ -103,6 +160,10 @@ function brt.setup(opts)
         '<cmd>lua require("brt").check_and_execute("debug_command")<CR>',
         { noremap = true, silent = true })
     vim.api.nvim_set_keymap('n', brt_config.keymaps["quit_tab"], '<cmd>lua require("brt").handle_quit()<CR>',
+        { noremap = true, silent = true })
+    vim.api.nvim_set_keymap('n', brt_config.keymaps["quickfix_error"], '<cmd>lua require("brt").lsp_to_quickfix("E", false)<CR>',
+        { noremap = true, silent = true })
+    vim.api.nvim_set_keymap('n', brt_config.keymaps["quickfix_warning"], '<cmd>lua require("brt").lsp_to_quickfix("W", false)<CR>',
         { noremap = true, silent = true })
 end
 

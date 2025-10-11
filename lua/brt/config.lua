@@ -7,6 +7,8 @@ brt_config.keymaps = {
     ["test"] = "<leader>t",
     ["debug"] = "<leader>d",
     ["quit_tab"] = "<leader>q",
+    ["quickfix_warning"] = "<leader>lw",
+    ["quickfix_error"] = "<leader>le",
 }
 
 brt_config.filetype_map = {
