@@ -109,32 +109,38 @@ function brt.execute_with_quickfix(cmd)
 end
 
 function brt.handle_quit()
-    local function is_quittable(bufnr)
-        local name = vim.api.nvim_buf_get_name(bufnr)
-        local buftype = vim.api.nvim_get_option_value("buftype", { buf = bufnr })
-        local filetype = vim.api.nvim_get_option_value("filetype", { buf = bufnr })
+  local function is_quittable(bufnr)
+    local name = vim.api.nvim_buf_get_name(bufnr)
+    local buftype = vim.api.nvim_get_option_value("buftype", { buf = bufnr })
+    local filetype = vim.api.nvim_get_option_value("filetype", { buf = bufnr })
 
-        if buftype == "terminal" then
-            return true 
-        end
-        if filetype == "quickfix" then
-            return true 
-        end
-        if name == "" then
-            return true
-        end
-        return false
+    if buftype == "terminal" then
+      return true
     end
+    if filetype == "quickfix" then
+      return true
+    end
+    if name == "" then
+      return true
+    end
+    return false
+  end
 
-    -- Keep quitting buffers until we hit a quittable one
-    while true do
-        local bufnr = vim.api.nvim_get_current_buf()
-        if is_quittable(bufnr) then
-            vim.cmd("q")
-        else
-          break
-        end
+  local has_quit = false
+  -- Keep quitting buffers until we hit a quittable one
+  while true do
+    local bufnr = vim.api.nvim_get_current_buf()
+    if is_quittable(bufnr) then
+      vim.cmd("q")
+      has_quit = true
+    else
+      break
     end
+  end
+
+  if (not has_quit) then
+    vim.cmd("q")
+  end
 end
 
 -- Convert LSP diagnostics to quickfix list
@@ -224,11 +230,11 @@ function brt.check_and_execute(op)
   fzf_lua.fzf_exec(tbl, {
     prompt = "Change/Input to " .. op .. ":> ",
     winopts = {
-      height = 0.3,
-      width  = 0.5,
-      row    = 0.5,
-      col    = 0.5,
-      border = "rounded",
+      height     = 0.3,
+      width      = 0.5,
+      row        = 0.5,
+      col        = 0.5,
+      border     = "rounded",
       fullscreen = false,
     },
     keymap = {
@@ -245,7 +251,8 @@ function brt.check_and_execute(op)
         if not input or brt_util.only_spaces(input) then
           return
         end
-
+      
+        -- vim.print(input)
         table.insert(tbl, input)
         brt_util.save_table(tbl)
         brt.execute_with_quickfix(input)
@@ -301,19 +308,19 @@ vim.api.nvim_create_user_command("BRTLog", function()
 end, {})
 
 vim.api.nvim_create_user_command("BRTClear", function()
-    -- Delete the data file if it exists
-    if vim.fn.filereadable(brt_util.data_file) == 1 then
-        local ok, err = pcall(vim.fn.delete, brt_util.data_file)
-        if not ok then
-            vim.notify("Failed to delete BRT data file: " .. tostring(err), vim.log.levels.ERROR)
-            return
-        end
+  -- Delete the data file if it exists
+  if vim.fn.filereadable(brt_util.data_file) == 1 then
+    local ok, err = pcall(vim.fn.delete, brt_util.data_file)
+    if not ok then
+      vim.notify("Failed to delete BRT data file: " .. tostring(err), vim.log.levels.ERROR)
+      return
     end
+  end
 
-    -- Recreate file with default commands if empty
-    brt_util.create_file_if_empty()
+  -- Recreate file with default commands if empty
+  brt_util.create_file_if_empty()
 
-    vim.notify("BRT command history cleared.", vim.log.levels.INFO)
+  vim.notify("BRT command history cleared.", vim.log.levels.INFO)
 end, { desc = "Clear BRT command history" })
 
 
