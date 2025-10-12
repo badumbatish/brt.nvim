@@ -82,9 +82,11 @@ function brt.execute_with_quickfix(cmd)
         local f, err = io.open(log_file, "w")
         if f then
           local cwd = vim.loop.cwd() -- or os.getenv("PWD")
-          f:write("pwd    : " .. cwd .. "\n")
-          f:write("command: " .. cmd .. "\n")
-          f:write("output :\n" .. output_clean .. "\n")
+          -- TODO: Add git commit, branch and repo
+          f:write("pwd        : " .. cwd .. "\n")
+          f:write("command    : " .. cmd .. "\n")
+          f:write("exit code  : " .. exit_code .. "\n")
+          f:write("output     :\n" .. output_clean .. "\n")
 
           f:close()
         else
@@ -251,7 +253,7 @@ function brt.check_and_execute(op)
     input = true,
     actions = {
       ["default"] = function(selected, opts)
-        local input = (selected and selected[1]) or opts.query
+        local input = opts.query or (selected and selected[1])
         if not input or brt_util.only_spaces(input) then
           return
         end
