@@ -2,10 +2,24 @@ local brt_config = require("brt.config")
 local brt_util = require("brt.util")
 
 local brt = {}
-
 local successful_msg = "✅ BRT successfully! Terminal closed automatically. Resivit ouput via :BRTLog."
 local fallure_msg = "❌ BRT failed! Check the terminal and quickfix for details. Resivit ouput via :BRTLog."
 local log_file = vim.fn.stdpath("data") .. "/brt.log"
+
+
+local function get_cmd_history(limit)
+  -- limit = limit or 200
+  local n = vim.fn.histnr("cmd")          -- number of entries in cmd history
+  local history = {}
+  for i = n, math.max(1, n - limit + 1), -1 do
+    local cmd = vim.fn.histget("cmd", i)
+    if cmd and cmd ~= "" then
+      table.insert(history, cmd)
+    end
+  end
+  return history
+end
+
 local function set_quickfix_from_output(output_clean)
   local lines = {}
   vim.iter({ output_clean })
@@ -207,19 +221,49 @@ function brt.check_and_execute(op)
     brt_util.save_table(tbl)
   end
 
-  prev_data[cmd_key] = vim.fn.input({
-    prompt = "Change/Input to " .. op .. ": ",
-    default = prev_data[cmd_key]
+  -- Use fzf-lua for input
+
+  local fzf_lua = require("fzf-lua")
+  fzf_lua.fzf_exec(get_cmd_history(1000), {
+    prompt = "Change/Input to " .. op .. ":> ",
+    winopts = {
+      height = 0.3,
+      width  = 0.5,
+      row    = 0.5,
+      col    = 0.5,
+      border = "rounded",
+      fullscreen = false,
+    },
+    keymap = {
+      fzf = {
+        ["ctrl-y"] = "replace-query",
+        ["ctrl-n"] = "down",
+        ["ctrl-p"] = "up",
+      },
+    },
+    input = true,
+    actions = {
+      ["default"] = function(selected, opts)
+        local input = (selected and selected[1]) or opts.query
+        if not input or brt_util.only_spaces(input) then
+          return
+        end
+
+        -- Save for later
+        prev_data[cmd_key] = input
+        if current_dir then
+          tbl[current_dir] = prev_data
+        end
+        brt_util.save_table(tbl)
+
+        vim.fn.histadd("cmd", input)
+        -- Execute the command
+        brt.execute_with_quickfix(input)
+      end,
+
+
+    },
   })
-
-  if (brt_util.only_spaces(prev_data[cmd_key])) then return end
-  if current_dir then
-    tbl[current_dir] = prev_data
-  end
-
-  brt_util.save_table(tbl)
-
-  brt.execute_with_quickfix(prev_data[cmd_key])
 end
 
 function brt.setup(opts)

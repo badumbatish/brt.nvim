@@ -41,6 +41,9 @@ For lazy.nvim
 ```lua  
 return {
  "badumbatish/brt.nvim",
+  dependencies = {
+    "ibhagwan/fzf-lua",  -- add fzf-lua as a dependency
+  },
 
  config = function()
    require('brt').setup()
