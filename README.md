@@ -32,6 +32,8 @@ The default keymaps are:
 <leader>d - Debug
 <leader>t - Test
 <leader>q - Quit the brt tab (it acts as a :q)
+<leader>le - Populate the quickfix list with errors from all the buffers.
+<leader>le - Populate the quickfix list with warnings from all the current buffers.
 ```
 
 ## Installation
@@ -72,6 +74,8 @@ return {
         ["test"] = "<leader>t",
         ["debug"] = "<leader>d",
         ["quit_tab"] = "<leader>q",
+        ["quickfix_error"] = "<leader>le",
+        ["quickfix_warning"] = "<leader>lw"
     }
 
     brt_config.filetype_map = {
