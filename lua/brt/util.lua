@@ -1,5 +1,50 @@
 local util = {}
 util.data_file = vim.fn.stdpath("data") .. "/brt_local_data.json"
+
+util.default_list = {
+    -- Rust
+    rust = {
+        "cargo build",
+        "cargo run",
+        "cargo test",
+    },
+
+    -- Node.js / npm
+    node = {
+        "npm install && npm run build",
+        "npm run start",
+        "npm run test",
+    },
+
+    -- C/C++ (CMake / Ninja)
+    cpp = {
+        "cmake --build build -j4",
+        "ninja -C build",
+        "./build/",
+        "lldb -- ./build/",
+        "ctest --test-dir build --output-on-failure",
+    },
+
+    -- Make
+    make = {
+        "make -j4",
+        "make run",
+        "make test",
+    },
+
+    -- Elixir / Mix
+    elixir = {
+        "mix compile",
+        "mix test",
+    },
+}
+util.default_list_flat = {}
+for _, commands in pairs(util.default_list) do
+    for _, command in ipairs(commands) do
+        table.insert(util.default_list_flat, command)
+    end
+end
+
 function util.str_suffix_strip(str, suffix)
     return string.gsub(str, suffix .. "+$", "")
 end
@@ -37,16 +82,22 @@ end
 
 function util.load_table()
     if vim.fn.filereadable(util.data_file) == 1 then
-        local content = table.concat(vim.fn.readfile(util.data_file), "\n")
-        local ok, result = pcall(vim.fn.json_decode, content)
-        if ok then return result end
+        local lines = vim.fn.readfile(util.data_file)
+        -- Remove empty lines (optional)
+        local result = {}
+        for _, line in ipairs(lines) do
+            if line:match("%S") then
+                table.insert(result, line)
+            end
+        end
+        return result
     end
     return {}
 end
 
 function util.create_file_if_empty()
     if vim.fn.filereadable(util.data_file) == 0 then
-        vim.fn.writefile({}, util.data_file)
+        vim.fn.writefile(util.default_list_flat, util.data_file)
     end
 end
 

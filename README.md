@@ -4,20 +4,9 @@ Hi everyone! Welcome to my first plugin: BRT (Build, Run, and Test, (and Debug))
 
 The plugin helps automate/alleviate the process of building, running and testing your code.
 
-Instead of having to type out the commands to build, run, and test your code, you can set the commands in the BRT plugins to do it for you.
+Once the commands finish running, it pipes errors (only error for now) into a quickfix list for you.
 
-BRT will look inside your neovim-invoked directory and check for a match to run your commands.
-
-For example:
-- If your directory contains `Cargo.toml`, pressing `<leader>b` will run `cargo build` in the terminal.
-
-- If you have a `Makefile`, pressing `<leader>b` will run `make -j4` in the terminal.
-
-- If you have a `CMakeLists.txt`, pressing `<leader>b` will run `cmake --build build -j4` in the terminal.
-
-It automatically detects these files once you give it the filetype to look for and which command to build, please see [Configuration](#Configuration) for more information.
-
-It also remembers every prompt you give it for all 4 commands, committed to your directory.
+It also remembers every prompt you give it for all 4 commands, just like atuin.
 ## Demo
 See the plugin in action below:
 
@@ -55,7 +44,6 @@ return {
 You can also change 
 
 - The keymap used to invoke brt.nvim.
-- The keymap used as placeholder for different file types.
 
 The full fledged default is here (or you can check the most up to date at lua/brt/config.lua):
 ```lua
@@ -81,40 +69,6 @@ return {
         ["quickfix_warning"] = "<leader>lw"
     }
 
-    brt_config.filetype_map = {
-        ["Cargo.toml"] = {
-            build_command = "cargo build",
-            run_command = "cargo run",
-            debug_command = "",
-            test_command = "cargo test",
-        },
-        ["package.json"] = {
-            build_command = "npm install && npm run build",
-            run_command = "npm run start",
-            debug_command = "",
-            test_command = "npm run test",
-        },
-        ["CMakeLists.txt"] = {
-            build_command = "cmake --build build -j4",
-            run_command = "./build/",
-            debug_command = "lldb -- ./build/",
-            test_command = "ctest --test-dir build --output-on-failure",
-        },
-        ["Makefile"] = {
-            build_command = "make -j4",
-            run_command = "make run",
-            debug_command = "",
-            test_command = "make test",
-        },
-        ["mix.exs"] = {
-            build_command = "mix compile",
-            run_command = "",
-            debug_command = "",
-            test_command = "mix test",
-        }
-
-        -- Add more project types here
-    }
     require('brt').setup()
 end
 }

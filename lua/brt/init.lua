@@ -6,20 +6,6 @@ local successful_msg = "✅ BRT successfully! Terminal closed automatically. Res
 local fallure_msg = "❌ BRT failed! Check the terminal and quickfix for details. Resivit ouput via :BRTLog."
 local log_file = vim.fn.stdpath("data") .. "/brt.log"
 
-
-local function get_cmd_history(limit)
-  -- limit = limit or 200
-  local n = vim.fn.histnr("cmd")          -- number of entries in cmd history
-  local history = {}
-  for i = n, math.max(1, n - limit + 1), -1 do
-    local cmd = vim.fn.histget("cmd", i)
-    if cmd and cmd ~= "" then
-      table.insert(history, cmd)
-    end
-  end
-  return history
-end
-
 local function set_quickfix_from_output(output_clean)
   local lines = {}
   vim.iter({ output_clean })
@@ -123,12 +109,32 @@ function brt.execute_with_quickfix(cmd)
 end
 
 function brt.handle_quit()
-  local buftype = vim.api.nvim_get_option_value('buftype', { buf = 0 })
-  if buftype == "terminal" then
-    vim.cmd("bd!")
-  else
-    vim.cmd("q")
-  end
+    local function is_quittable(bufnr)
+        local name = vim.api.nvim_buf_get_name(bufnr)
+        local buftype = vim.api.nvim_get_option_value("buftype", { buf = bufnr })
+        local filetype = vim.api.nvim_get_option_value("filetype", { buf = bufnr })
+
+        if buftype == "terminal" then
+            return true 
+        end
+        if filetype == "quickfix" then
+            return true 
+        end
+        if name == "" then
+            return true
+        end
+        return false
+    end
+
+    -- Keep quitting buffers until we hit a quittable one
+    while true do
+        local bufnr = vim.api.nvim_get_current_buf()
+        if is_quittable(bufnr) then
+            vim.cmd("q")
+        else
+          break
+        end
+    end
 end
 
 -- Convert LSP diagnostics to quickfix list
@@ -212,19 +218,10 @@ function brt.check_and_execute(op)
     return
   end
 
-  local current_dir = vim.uv.cwd()
   local tbl = brt_util.load_table()
-  local prev_data = brt_util.table_get(tbl, current_dir)
-
-  if not prev_data then
-    prev_data = brt.populate_data(current_dir)
-    brt_util.save_table(tbl)
-  end
-
   -- Use fzf-lua for input
-
   local fzf_lua = require("fzf-lua")
-  fzf_lua.fzf_exec(get_cmd_history(1000), {
+  fzf_lua.fzf_exec(tbl, {
     prompt = "Change/Input to " .. op .. ":> ",
     winopts = {
       height = 0.3,
@@ -249,15 +246,8 @@ function brt.check_and_execute(op)
           return
         end
 
-        -- Save for later
-        prev_data[cmd_key] = input
-        if current_dir then
-          tbl[current_dir] = prev_data
-        end
+        table.insert(tbl, input)
         brt_util.save_table(tbl)
-
-        vim.fn.histadd("cmd", input)
-        -- Execute the command
         brt.execute_with_quickfix(input)
       end,
 
@@ -271,11 +261,6 @@ function brt.setup(opts)
   if opts and opts.keymaps then
     brt.set_keymaps(opts.keymaps)
   end
-
-  if opts and opts.filetype_map then
-    brt.set_filetype_map(opts.project_map)
-  end
-
 
 
   vim.api.nvim_set_keymap('n', brt_config.keymaps["build"],
@@ -307,13 +292,6 @@ function brt.set_keymaps(keymaps)
   end
 end
 
-function brt.set_filetype_map(filetype_map)
-  -- override whatever mapping over to the brt_config.filetype_map
-  for key, value in pairs(filetype_map) do
-    brt_config.filetype_map[key] = value
-  end
-end
-
 vim.api.nvim_create_user_command("BRTLog", function()
   if vim.fn.filereadable(log_file) == 1 then
     vim.cmd("tabnew " .. log_file)
@@ -321,4 +299,22 @@ vim.api.nvim_create_user_command("BRTLog", function()
     vim.notify("No BRT log found!", vim.log.levels.WARN)
   end
 end, {})
+
+vim.api.nvim_create_user_command("BRTClear", function()
+    -- Delete the data file if it exists
+    if vim.fn.filereadable(brt_util.data_file) == 1 then
+        local ok, err = pcall(vim.fn.delete, brt_util.data_file)
+        if not ok then
+            vim.notify("Failed to delete BRT data file: " .. tostring(err), vim.log.levels.ERROR)
+            return
+        end
+    end
+
+    -- Recreate file with default commands if empty
+    brt_util.create_file_if_empty()
+
+    vim.notify("BRT command history cleared.", vim.log.levels.INFO)
+end, { desc = "Clear BRT command history" })
+
+
 return brt
