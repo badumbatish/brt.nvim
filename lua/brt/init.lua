@@ -81,7 +81,11 @@ function brt.execute_with_quickfix(cmd)
         -- Save to file
         local f, err = io.open(log_file, "w")
         if f then
-          f:write(output_clean)
+          local cwd = vim.loop.cwd() -- or os.getenv("PWD")
+          f:write("pwd    : " .. cwd .. "\n")
+          f:write("command: " .. cmd .. "\n")
+          f:write("output :\n" .. output_clean .. "\n")
+
           f:close()
         else
           vim.notify("Failed to write BRT log: " .. err, vim.log.levels.ERROR)
@@ -251,10 +255,10 @@ function brt.check_and_execute(op)
         if not input or brt_util.only_spaces(input) then
           return
         end
-      
-        -- vim.print(input)
         table.insert(tbl, input)
-        brt_util.save_table(tbl)
+        if #tbl > 0 then
+          brt_util.save_table(tbl)
+        end
         brt.execute_with_quickfix(input)
       end,
 
