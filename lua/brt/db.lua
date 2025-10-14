@@ -257,7 +257,7 @@ function db.clear_all()
   if not conn then return false end
 
   local ok = pcall(function()
-    conn.commands:remove({})
+    conn.commands:remove()
   end)
 
   if not ok then
