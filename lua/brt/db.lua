@@ -20,7 +20,7 @@ local function get_db()
       type = { "text", required = true },
       last_inputted = { "integer", required = true },
       times_inputted = { "integer", default = 1 },
-      success = { "integer", default = 0 },  -- 1 for success, 0 for failure
+      success = { "integer", default = 0 }, -- 1 for success, 0 for failure
     }
   })
 
@@ -181,13 +181,13 @@ end
 -- @return string: Formatted time string
 local function format_time_friendly(timestamp)
   if not timestamp or timestamp == 0 then
-    return "---"
+    return "----"
   end
 
   local now = os.time()
   local diff = now - timestamp
 
-  local str_time = "" 
+  local str_time = ""
   if diff < 60 then
     str_time = diff .. "s"
   elseif diff < 3600 then
@@ -199,10 +199,9 @@ local function format_time_friendly(timestamp)
   elseif diff < 2592000 then
     str_time = math.floor(diff / 604800) .. "w"
   elseif diff < 31556926 then
-    str_time = math.floor(diff / 2592000) .. "mo"
+    str_time = math.floor(diff / 2592000) .. "M"
   else
-    str_time = math.floor(diff / 31556926) .. "yr"
-
+    str_time = math.floor(diff / 31556926) .. "y"
   end
 
   return "~" .. str_time
@@ -224,7 +223,7 @@ function db.format_command_for_display(record)
   local time_str = format_time_friendly(last_inputted)
   local type_str = cmd_type:gsub("_command", "")
 
-  return string.format("%-5s | %-4s | %3dx | %s",
+  return string.format("%-5s|%-4s|%4dx|%s",
     type_str,
     time_str,
     times_inputted,
@@ -282,6 +281,5 @@ function db.seed_defaults(default_list)
 
   return true
 end
-
 
 return db
