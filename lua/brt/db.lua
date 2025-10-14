@@ -1,7 +1,7 @@
 local db = {}
 
 -- Database path
-db.db_path = vim.fn.stdpath("data") .. "/brt_commands.db"
+db.db_path = vim.fn.stdpath("config") .. "/brt_commands.db"
 
 -- Initialize SQLite connection with proper schema
 local function get_db()
