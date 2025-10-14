@@ -1,5 +1,6 @@
 local brt_config = require("brt.config")
 local brt_util = require("brt.util")
+local brt_db = require("brt.db")
 
 local brt = {}
 local successful_msg = "✅ BRT successfully! Terminal closed automatically. Resivit ouput via :BRTLog."
@@ -230,47 +231,88 @@ function brt.check_and_execute(op)
     return
   end
 
-  local tbl = brt_util.load_table()
+  -- Get ALL commands from database (no filtering by type)
+  local commands = brt_db.get_commands()
+
+  -- Format commands for display with all 4 fields
+  local display_items = {}
+  for _, cmd_record in ipairs(commands) do
+    table.insert(display_items, brt_db.format_command_for_display(cmd_record))
+  end
+
+  -- Get the last command for this type as default
+  local last_cmd = brt_db.get_last_command(cmd_key)
+
   -- Use fzf-lua for input
   local fzf_lua = require("fzf-lua")
-  fzf_lua.fzf_exec(tbl, {
-    prompt = "Change/Input to " .. op .. ":> ",
+  fzf_lua.fzf_exec(display_items, {
+    prompt = "Command> ",
+    query = last_cmd or "",
     winopts = {
-      height     = 0.3,
-      width      = 0.5,
+      height     = 0.4,
+      width      = 0.8,
       row        = 0.5,
       col        = 0.5,
       border     = "rounded",
       fullscreen = false,
     },
+    fzf_opts = {
+      -- Start with no selection
+      ["--no-select-1"] = "",
+      ["--nth"] = 4,
+      ["--delimiter"] = "|",
+      ["--ghost"] = "...", -- ANSI: italic + gray
+    },
+    no_filter = false,
     keymap = {
       fzf = {
-        ["ctrl-y"] = "replace-query",
+        ["ctrl-u"] = "clear-query",
         ["ctrl-n"] = "down",
         ["ctrl-p"] = "up",
       },
     },
     input = true,
     actions = {
+      ["ctrl-y"] = {
+        function(selected, opts)
+          if selected and selected[1] then
+            local command = brt_db.parse_display_string(selected[1])
+            opts.query = command
+          end
+        end,
+        require'fzf-lua'.actions.resume
+      },
       ["default"] = function(selected, opts)
-        local input = opts.query or (selected and selected[1])
+        local input
+
+        -- If user selected an item, parse it to get the command
+        if selected and selected[1] then
+          input = brt_db.parse_display_string(selected[1])
+        end
+
+        -- If user typed a new query, use that instead
+        if opts.query and opts.query ~= "" and not brt_util.only_spaces(opts.query) then
+          input = opts.query
+        end
+
         if not input or brt_util.only_spaces(input) then
           return
         end
-        table.insert(tbl, input)
-        if #tbl > 0 then
-          brt_util.save_table(tbl)
-        end
+
+        -- Save to database with command type based on which key was pressed
+        brt_db.save_command(input, cmd_key)
+
+        -- Execute the command
         brt.execute_with_quickfix(input)
       end,
-
-
     },
   })
 end
 
 function brt.setup(opts)
-  brt_util.create_file_if_empty()
+  -- Initialize database
+  brt_db.init()
+
   if opts and opts.keymaps then
     brt.set_keymaps(opts.keymaps)
   end
@@ -314,19 +356,13 @@ vim.api.nvim_create_user_command("BRTLog", function()
 end, {})
 
 vim.api.nvim_create_user_command("BRTClear", function()
-  -- Delete the data file if it exists
-  if vim.fn.filereadable(brt_util.data_file) == 1 then
-    local ok, err = pcall(vim.fn.delete, brt_util.data_file)
-    if not ok then
-      vim.notify("Failed to delete BRT data file: " .. tostring(err), vim.log.levels.ERROR)
-      return
-    end
+  -- Clear database
+  local ok = brt_db.clear_all()
+  if ok then
+    vim.notify("BRT command history cleared.", vim.log.levels.INFO)
+  else
+    vim.notify("Failed to clear BRT command history.", vim.log.levels.ERROR)
   end
-
-  -- Recreate file with default commands if empty
-  brt_util.create_file_if_empty()
-
-  vim.notify("BRT command history cleared.", vim.log.levels.INFO)
 end, { desc = "Clear BRT command history" })
 
 
