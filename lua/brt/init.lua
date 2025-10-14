@@ -82,7 +82,7 @@ function brt.execute_with_quickfix(cmd, cmd_key)
         set_quickfix_from_output(output_clean)
 
         -- Determine success: 1 if exit_code is 0 and no stderr, 0 otherwise
-        local bool_success = exit_code == 0 and not has_stderr
+        local bool_success = exit_code == 0
         local success = (bool_success and 1) or 0
 
         -- Save command to database with success status
