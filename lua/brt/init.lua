@@ -46,7 +46,9 @@ local function strip_ansi_and_emptylines(s)
 end
 
 -- Run in a terminal + quickfix
-function brt.execute_with_quickfix(cmd)
+-- @param cmd string: The command to execute
+-- @param cmd_key string|nil: The command type (build_command, run_command, etc.) for saving to database
+function brt.execute_with_quickfix(cmd, cmd_key)
   if cmd == "" then return end
   local prev_win = vim.api.nvim_get_current_win()
   local prev_cursor = vim.api.nvim_win_get_cursor(prev_win) -- {row, col}
@@ -79,6 +81,13 @@ function brt.execute_with_quickfix(cmd)
         local output_clean = strip_ansi_and_emptylines(table.concat(output_data, "\n"))
         set_quickfix_from_output(output_clean)
 
+        -- Determine success: 1 if exit_code is 0 and no stderr, 0 otherwise
+        local bool_success = exit_code == 0 and not has_stderr
+        local success = (bool_success and 1) or 0
+
+        -- Save command to database with success status
+        brt_db.save_command(cmd, cmd_key, success)
+
         -- Save to file
         local f, err = io.open(log_file, "w")
         if f then
@@ -94,13 +103,13 @@ function brt.execute_with_quickfix(cmd)
           vim.notify("Failed to write BRT log: " .. err, vim.log.levels.ERROR)
         end
         -- If no error and exit_code is 0, close terminal
-        if exit_code == 0 and not has_stderr then
+        if bool_success then
           if vim.api.nvim_win_is_valid(term_win) then
             vim.api.nvim_win_close(term_win, true)
           end
         end
 
-        if exit_code == 0 and not has_stderr then
+        if bool_success then
           vim.print(successful_msg)
         else
           vim.print(fallure_msg)
@@ -278,9 +287,9 @@ function brt.check_and_execute(op)
           if selected and selected[1] then
             local command = brt_db.parse_display_string(selected[1])
             opts.query = command
+            fzf_lua.resume()
           end
         end,
-        require'fzf-lua'.actions.resume
       },
       ["default"] = function(selected, opts)
         local input
@@ -299,11 +308,8 @@ function brt.check_and_execute(op)
           return
         end
 
-        -- Save to database with command type based on which key was pressed
-        brt_db.save_command(input, cmd_key)
-
-        -- Execute the command
-        brt.execute_with_quickfix(input)
+        -- Execute the command and pass cmd_key so it can save after execution with success status
+        brt.execute_with_quickfix(input, cmd_key)
       end,
     },
   })

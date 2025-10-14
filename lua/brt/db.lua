@@ -20,6 +20,7 @@ local function get_db()
       type = { "text", required = true },
       last_inputted = { "integer", required = true },
       times_inputted = { "integer", default = 1 },
+      success = { "integer", default = 0 },  -- 1 for success, 0 for failure
     }
   })
 
@@ -56,7 +57,8 @@ end
 -- Save or update a command
 -- @param command string: The command to save
 -- @param cmd_type string: The type of command (build_command, run_command, test_command, debug_command)
-function db.save_command(command, cmd_type)
+-- @param success_val number|nil: 1 for success, 0 for failure (optional, defaults to 0)
+function db.save_command(command, cmd_type, success_val)
   if not command or command == "" then
     return false
   end
@@ -70,6 +72,7 @@ function db.save_command(command, cmd_type)
   if not conn then return false end
 
   local timestamp = os.time()
+  local success = success_val or 0
 
   -- Check if command exists
   local existing = conn.commands:get({ where = { command = command } })
@@ -81,7 +84,8 @@ function db.save_command(command, cmd_type)
       set = {
         last_inputted = timestamp,
         times_inputted = existing[1].times_inputted + 1,
-        type = cmd_type
+        type = cmd_type,
+        success = success
       }
     })
   else
@@ -90,7 +94,8 @@ function db.save_command(command, cmd_type)
       command = command,
       type = cmd_type,
       last_inputted = timestamp,
-      times_inputted = 1
+      times_inputted = 1,
+      success = success
     })
   end
 
@@ -176,7 +181,7 @@ end
 -- @return string: Formatted time string
 local function format_time_friendly(timestamp)
   if not timestamp or timestamp == 0 then
-    return "never"
+    return "---"
   end
 
   local now = os.time()
