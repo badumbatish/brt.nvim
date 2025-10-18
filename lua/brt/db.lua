@@ -5,12 +5,13 @@ local brt_util = require("brt.util")
 db.db_path = vim.fn.stdpath("config") .. "/brt_commands.db"
 
 
-function db.fields_initializer(command, type, last_inputted, times_inputted, exit_code)
+function db.fields_initializer(command, type, duration, times_inputted, last_inputted, exit_code)
   return {
     command = command,
     type = type,
-    last_inputted = last_inputted,
+    duration = duration,
     times_inputted = times_inputted,
+    last_inputted = last_inputted,
     exit_code = exit_code
   }
 end
@@ -30,8 +31,9 @@ local function get_db()
       id = { "integer", "primary", "key" },
       command = { "text", required = true, unique = true },
       type = { "text", required = true },
-      last_inputted = { "integer", required = true },
+      duration = { "integer", required = true },
       times_inputted = { "integer", default = 0 },
+      last_inputted = { "integer", default = 0 },
       exit_code = { "integer", default = 0 }, -- 1 for success, 0 for failure
     }
   })
@@ -51,10 +53,10 @@ function db.init()
       local existing = conn.commands:get({ where = { command = command } })
 
       if not existing or #existing == 0 then
-        -- Insert with type "---", timestamp 0, times_inputted 0
         conn.commands:insert(db.fields_initializer(
           command,
           "---",
+          0,
           0,
           0,
           0))
@@ -69,7 +71,7 @@ end
 -- @param command string: The command to save
 -- @param cmd_type string: The type of command (build_command, run_command, test_command, debug_command)
 -- @param success_val number|nil: 1 for success, 0 for failure (optional, defaults to 2 ())
-function db.save_command(command, cmd_type, exit_code)
+function db.save_command(command, cmd_type, exit_code, timestamp)
   if not command or command == "" then
     return false
   end
@@ -82,16 +84,16 @@ function db.save_command(command, cmd_type, exit_code)
   local conn = get_db()
   if not conn then return false end
 
-  local timestamp = os.time()
+  local now = os.time()
 
   -- Check if command exists
   local existing = conn.commands:get({ where = { command = command } })
 
   if existing and #existing > 0 then
-    -- Update existing command
     conn.commands:update({
       where = { command = command },
       set = {
+        duration = now - timestamp,
         last_inputted = timestamp,
         times_inputted = existing[1].times_inputted + 1,
         type = cmd_type,
@@ -103,8 +105,9 @@ function db.save_command(command, cmd_type, exit_code)
     conn.commands:insert(db.fields_initializer(
       command,
       cmd_type,
-      timestamp,
+      now - timestamp,
       1,
+      timestamp,
       exit_code))
   end
 
@@ -119,7 +122,7 @@ function db.get_commands(cmd_type)
   if not conn then return {} end
 
   local query = {
-    select = { "command", "type", "last_inputted", "times_inputted", "exit_code" },
+    select = { "command", "type", "duration", "times_inputted", "exit_code", "last_inputted" },
     order_by = { desc = "last_inputted" }
   }
 
@@ -159,32 +162,29 @@ end
 -- Format time to friendly relative time
 -- @param timestamp number: Unix timestamp
 -- @return string: Formatted time string
-local function format_time_friendly(timestamp)
-  if not timestamp or timestamp == 0 then
+local function format_time_friendly(duration)
+  if not duration or duration == 0 then
     return "----"
   end
 
-  local now = os.time()
-  local diff = now - timestamp
-
   local str_time = ""
-  if diff < 60 then
-    str_time = diff .. "s"
-  elseif diff < 3600 then
-    str_time = math.floor(diff / 60) .. "m"
-  elseif diff < 86400 then
-    str_time = math.floor(diff / 3600) .. "h"
-  elseif diff < 604800 then
-    str_time = math.floor(diff / 86400) .. "d"
-  elseif diff < 2592000 then
-    str_time = math.floor(diff / 604800) .. "w"
-  elseif diff < 31556926 then
-    str_time = math.floor(diff / 2592000) .. "M"
+  if duration < 60 then
+    str_time = duration .. "s"
+  elseif duration < 3600 then
+    str_time = math.floor(duration / 60) .. "m"
+  elseif duration < 86400 then
+    str_time = math.floor(duration / 3600) .. "h"
+  elseif duration < 604800 then
+    str_time = math.floor(duration / 86400) .. "d"
+  elseif duration < 2592000 then
+    str_time = math.floor(duration / 604800) .. "w"
+  elseif duration < 31556926 then
+    str_time = math.floor(duration / 2592000) .. "M"
   else
-    str_time = math.floor(diff / 31556926) .. "y"
+    str_time = math.floor(duration / 31556926) .. "y"
   end
 
-  return "~" .. str_time .. " ago"
+  return "~" .. str_time
 end
 
 -- Format a command record for display in fzf-lua
@@ -197,24 +197,28 @@ function db.format_command_for_display(record)
   local success = ""
   local command = record.command or ""
   local cmd_type = record.type or "unknown"
-  local last_inputted = record.last_inputted or 0
+  local duration = record.duration or 0
   local times_inputted = record.times_inputted or 0
   local exit_code = tostring(record.exit_code or 0)
 
-  local time_str = format_time_friendly(last_inputted)
+  local time_str = format_time_friendly(duration)
   local type_str = cmd_type:gsub("_command", "")
 
   if (times_inputted == 0) then
     success = "⚪"
-    exit_code = "~~~"
+    exit_code = "\27[90m" .. string.format("%9s", "~~~") .. "\27[0m" -- Gray for never run
+    time_str = string.format("%8s", time_str)
   elseif (exit_code ~= "0") then
     success = "❌"
+    exit_code = "\27[31m" .. string.format("%9s", exit_code) .. "\27[0m" -- Red for failure
+    time_str = "\27[31m" .. string.format("%8s", time_str) .. "\27[0m" -- Red for failure
   else
     success = "✅"
+    exit_code = "\27[32m" .. string.format("%9s", exit_code) .. "\27[0m" -- Green for success
+    time_str = "\27[32m" .. string.format("%8s", time_str) .. "\27[0m" -- Red for failure
   end
 
-  return string.format("%7s|%9s|%5s|%8s|%4dx|%s",
-    success,
+  return string.format("%s|%5s|%s|%4dx|%s",
     exit_code,
     type_str,
     time_str,
@@ -235,7 +239,7 @@ function db.parse_display_string(display_str)
   -- Extract everything after the last |
   local parts = vim.split(display_str, "|", { plain = true })
   if #parts >= brt_util.pick_order then
-    return vim.trim(parts[6])
+    return vim.trim(parts[brt_util.pick_order])
   end
 
   -- Fallback: return trimmed string
@@ -259,19 +263,5 @@ function db.clear_all()
   return true
 end
 
--- Seed default commands into database
--- @param default_list table: Table of default commands by category
-function db.seed_defaults(default_list)
-  if not default_list then return false end
-
-  for category, commands in pairs(default_list) do
-    for _, command in ipairs(commands) do
-      -- Default to "build_command" type for seeding
-      db.save_command(command, "build", 0)
-    end
-  end
-
-  return true
-end
 
 return db

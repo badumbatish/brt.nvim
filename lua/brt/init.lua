@@ -60,6 +60,7 @@ function brt.execute_with_quickfix(cmd, cmd_key)
   vim.api.nvim_win_set_buf(0, term_buf)
   local term_win = vim.api.nvim_get_current_win()
 
+  local time_stamp = os.time()
   local tee_cmd = string.format("bash -o pipefail -c %q", cmd .. " 2>&1 | tee " .. vim.fn.shellescape(log_file))
   vim.fn.jobstart(tee_cmd, {
     cwd = vim.uv.cwd(),
@@ -86,7 +87,7 @@ function brt.execute_with_quickfix(cmd, cmd_key)
           set_quickfix_from_output(output_clean)
         end
         -- Save command to database with success status
-        brt_db.save_command(cmd, cmd_key, exit_code)
+        brt_db.save_command(cmd, cmd_key, exit_code, time_stamp)
 
         -- If no error and exit_code is 0, close terminal
         if bool_success then
@@ -243,8 +244,12 @@ function brt.check_and_execute(op)
       ["--nth"] = brt_util.pick_order,
       ["--delimiter"] = "|",
       ["--ghost"] = "...",
-      ["--header"] = "STATUS|EXIT CODE| TYPE|TIME AGO|COUNT|COMMAND",
-      -- ["--wrap"] = "",
+      ["--header"] = "EXIT CODE| TYPE|DURATION|COUNT|COMMAND",
+      ["--wrap"] = "",
+      ["--highlight-line"] = "",
+      ["--ansi"] = "",
+      ["--border-label"] = "HI",
+      ["--border"] = "top"
     },
     no_filter = false,
     keymap = {
