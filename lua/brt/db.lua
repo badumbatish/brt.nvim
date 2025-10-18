@@ -207,7 +207,7 @@ function db.format_command_for_display(record)
   if (times_inputted == 0) then
     success = "⚪"
     exit_code = "~~~"
-  elseif (exit_code ~= 0) then
+  elseif (exit_code ~= "0") then
     success = "❌"
   else
     success = "✅"
