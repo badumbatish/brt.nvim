@@ -8,7 +8,6 @@ local fallure_msg = "❌ BRT failed! Check the terminal and quickfix for details
 local log_file = vim.fn.stdpath("data") .. "/brt.log"
 local errorformat = vim.o.errorformat
 errorformat = errorformat .. ',%-G%\\d\\+%%%\\ \\[.*ETA:.*'
-
 local function set_quickfix_from_output(output_clean)
   local lines = {}
   vim.iter({ output_clean })
@@ -82,13 +81,12 @@ function brt.execute_with_quickfix(cmd, cmd_key)
 
         -- Determine success: 1 if exit_code is 0 and no stderr, 0 otherwise
         local bool_success = exit_code == 0
-        local success = (bool_success and 1) or 0
 
         if not bool_success then
           set_quickfix_from_output(output_clean)
         end
         -- Save command to database with success status
-        brt_db.save_command(cmd, cmd_key, success)
+        brt_db.save_command(cmd, cmd_key, exit_code)
 
         -- If no error and exit_code is 0, close terminal
         if bool_success then
@@ -196,24 +194,6 @@ function brt.lsp_to_quickfix(severity_filter, is_silent)
   end
 end
 
-function brt.populate_data(current_dir)
-  for file, filetype_config in pairs(brt_config.filetype_map) do
-    local file_path = current_dir .. "/" .. file
-
-    local expanded = vim.fn.expand(file_path)
-    if vim.fn.filereadable(expanded) == 1 then
-      vim.print(file_path)
-      return vim.deepcopy(filetype_config)
-    end
-  end
-  return {
-    build_command = "",
-    run_command = "",
-    test_command = "",
-    debug_command = ""
-  }
-end
-
 function brt.check_and_execute(op)
   vim.api.nvim_echo({ { "", "None" } }, false, {})
   local valid_ops = {
@@ -248,7 +228,7 @@ function brt.check_and_execute(op)
     query = last_cmd or "",
     winopts = {
       height     = 0.4,
-      width      = 0.6,
+      width      = 0.8,
       row        = 0.5,
       col        = 0.5,
       border     = "rounded",
@@ -257,9 +237,11 @@ function brt.check_and_execute(op)
     fzf_opts = {
       -- Start with no selection
       ["--no-select-1"] = "",
-      ["--nth"] = 5,
+      ["--nth"] = brt_util.pick_order,
       ["--delimiter"] = "|",
-      ["--ghost"] = "...", -- ANSI: italic + gray
+      ["--ghost"] = "...",
+      ["--header"] = "STATUS|EXIT CODE| TYPE|TIME AGO|COUNT|COMMAND",
+      -- ["--wrap"] = "",
     },
     no_filter = false,
     keymap = {

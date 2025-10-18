@@ -1,7 +1,19 @@
 local db = {}
 
+local brt_util = require("brt.util")
 -- Database path
 db.db_path = vim.fn.stdpath("config") .. "/brt_commands.db"
+
+
+function db.fields_initializer(command, type, last_inputted, times_inputted, exit_code)
+  return {
+    command = command,
+    type = type,
+    last_inputted = last_inputted,
+    times_inputted = times_inputted,
+    exit_code = exit_code
+  }
+end
 
 -- Initialize SQLite connection with proper schema
 local function get_db()
@@ -19,8 +31,8 @@ local function get_db()
       command = { "text", required = true, unique = true },
       type = { "text", required = true },
       last_inputted = { "integer", required = true },
-      times_inputted = { "integer", default = 1 },
-      success = { "integer", default = 0 }, -- 1 for success, 0 for failure
+      times_inputted = { "integer", default = 0 },
+      exit_code = { "integer", default = 0 }, -- 1 for success, 0 for failure
     }
   })
 
@@ -33,7 +45,6 @@ function db.init()
   if not conn then return false end
 
   -- Seed default commands from util.default_list
-  local brt_util = require("brt.util")
   for _, commands in pairs(brt_util.default_list) do
     for _, command in ipairs(commands) do
       -- Check if command already exists
@@ -41,13 +52,12 @@ function db.init()
 
       if not existing or #existing == 0 then
         -- Insert with type "---", timestamp 0, times_inputted 0
-        conn.commands:insert({
-          command = command,
-          type = "---",
-          last_inputted = 0,
-          times_inputted = 0,
-          success = 2;
-        })
+        conn.commands:insert(db.fields_initializer(
+          command,
+          "---",
+          0,
+          0,
+          0))
       end
     end
   end
@@ -59,7 +69,7 @@ end
 -- @param command string: The command to save
 -- @param cmd_type string: The type of command (build_command, run_command, test_command, debug_command)
 -- @param success_val number|nil: 1 for success, 0 for failure (optional, defaults to 2 ())
-function db.save_command(command, cmd_type, success_val)
+function db.save_command(command, cmd_type, exit_code)
   if not command or command == "" then
     return false
   end
@@ -73,10 +83,6 @@ function db.save_command(command, cmd_type, success_val)
   if not conn then return false end
 
   local timestamp = os.time()
-  local success = success_val
-  if (success_val == nil) then
-    success = 2
-  end
 
   -- Check if command exists
   local existing = conn.commands:get({ where = { command = command } })
@@ -89,18 +95,17 @@ function db.save_command(command, cmd_type, success_val)
         last_inputted = timestamp,
         times_inputted = existing[1].times_inputted + 1,
         type = cmd_type,
-        success = success
+        exit_code = exit_code
       }
     })
   else
     -- Insert new command
-    conn.commands:insert({
-      command = command,
-      type = cmd_type,
-      last_inputted = timestamp,
-      times_inputted = 1,
-      success = success
-    })
+    conn.commands:insert(db.fields_initializer(
+      command,
+      cmd_type,
+      timestamp,
+      1,
+      exit_code))
   end
 
   return true
@@ -114,7 +119,7 @@ function db.get_commands(cmd_type)
   if not conn then return {} end
 
   local query = {
-    select = { "command", "type", "last_inputted", "times_inputted", "success" },
+    select = { "command", "type", "last_inputted", "times_inputted", "exit_code" },
     order_by = { desc = "last_inputted" }
   }
 
@@ -190,23 +195,27 @@ function db.format_command_for_display(record)
     return ""
   end
   local success = ""
-  if (record.success == 1) then
-    success  = "✅"
-  elseif (record.success == 0) then
-    success = "❌"
-  else
-    success = "⚪"
-  end
   local command = record.command or ""
   local cmd_type = record.type or "unknown"
   local last_inputted = record.last_inputted or 0
   local times_inputted = record.times_inputted or 0
+  local exit_code = tostring(record.exit_code or 0)
 
   local time_str = format_time_friendly(last_inputted)
   local type_str = cmd_type:gsub("_command", "")
 
-  return string.format("%s|%-5s|%-8s|%4dx|%s",
+  if (times_inputted == 0) then
+    success = "⚪"
+    exit_code = "~~~"
+  elseif (exit_code ~= 0) then
+    success = "❌"
+  else
+    success = "✅"
+  end
+
+  return string.format("%7s|%9s|%5s|%8s|%4dx|%s",
     success,
+    exit_code,
     type_str,
     time_str,
     times_inputted,
@@ -225,8 +234,8 @@ function db.parse_display_string(display_str)
   -- New format: type | time | count | command
   -- Extract everything after the last |
   local parts = vim.split(display_str, "|", { plain = true })
-  if #parts >= 5 then
-    return vim.trim(parts[5])
+  if #parts >= brt_util.pick_order then
+    return vim.trim(parts[6])
   end
 
   -- Fallback: return trimmed string
@@ -258,7 +267,7 @@ function db.seed_defaults(default_list)
   for category, commands in pairs(default_list) do
     for _, command in ipairs(commands) do
       -- Default to "build_command" type for seeding
-      db.save_command(command, "build")
+      db.save_command(command, "build", 0)
     end
   end
 
