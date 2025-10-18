@@ -45,7 +45,8 @@ function db.init()
           command = command,
           type = "---",
           last_inputted = 0,
-          times_inputted = 0
+          times_inputted = 0,
+          success = 2;
         })
       end
     end
@@ -57,7 +58,7 @@ end
 -- Save or update a command
 -- @param command string: The command to save
 -- @param cmd_type string: The type of command (build_command, run_command, test_command, debug_command)
--- @param success_val number|nil: 1 for success, 0 for failure (optional, defaults to 0)
+-- @param success_val number|nil: 1 for success, 0 for failure (optional, defaults to 2 ())
 function db.save_command(command, cmd_type, success_val)
   if not command or command == "" then
     return false
@@ -72,7 +73,10 @@ function db.save_command(command, cmd_type, success_val)
   if not conn then return false end
 
   local timestamp = os.time()
-  local success = success_val or 0
+  local success = success_val
+  if (success_val == nil) then
+    success = 2
+  end
 
   -- Check if command exists
   local existing = conn.commands:get({ where = { command = command } })
@@ -110,7 +114,7 @@ function db.get_commands(cmd_type)
   if not conn then return {} end
 
   local query = {
-    select = { "command", "type", "last_inputted", "times_inputted" },
+    select = { "command", "type", "last_inputted", "times_inputted", "success" },
     order_by = { desc = "last_inputted" }
   }
 
@@ -147,35 +151,6 @@ function db.get_last_command(cmd_type)
   return results[1].command
 end
 
--- Get all unique commands as simple string array (for backward compatibility)
--- @return table: Array of command strings
-function db.get_command_list()
-  local conn = get_db()
-  if not conn then return {} end
-
-  local ok, results = pcall(function()
-    return conn.commands:get({
-      select = "command",
-      order_by = { desc = "last_inputted" }
-    })
-  end)
-
-  if not ok then
-    return {}
-  end
-
-  local commands = {}
-  if results and type(results) == "table" then
-    for _, row in ipairs(results) do
-      if row and row.command then
-        table.insert(commands, row.command)
-      end
-    end
-  end
-
-  return commands
-end
-
 -- Format time to friendly relative time
 -- @param timestamp number: Unix timestamp
 -- @return string: Formatted time string
@@ -204,7 +179,7 @@ local function format_time_friendly(timestamp)
     str_time = math.floor(diff / 31556926) .. "y"
   end
 
-  return "~" .. str_time
+  return "~" .. str_time .. " ago"
 end
 
 -- Format a command record for display in fzf-lua
@@ -214,7 +189,14 @@ function db.format_command_for_display(record)
   if not record or type(record) ~= "table" then
     return ""
   end
-
+  local success = ""
+  if (record.success == 1) then
+    success  = "✅"
+  elseif (record.success == 0) then
+    success = "❌"
+  else
+    success = "⚪"
+  end
   local command = record.command or ""
   local cmd_type = record.type or "unknown"
   local last_inputted = record.last_inputted or 0
@@ -223,7 +205,8 @@ function db.format_command_for_display(record)
   local time_str = format_time_friendly(last_inputted)
   local type_str = cmd_type:gsub("_command", "")
 
-  return string.format("%-5s|%-4s|%4dx|%s",
+  return string.format("%s|%-5s|%-8s|%4dx|%s",
+    success,
     type_str,
     time_str,
     times_inputted,
@@ -242,8 +225,8 @@ function db.parse_display_string(display_str)
   -- New format: type | time | count | command
   -- Extract everything after the last |
   local parts = vim.split(display_str, "|", { plain = true })
-  if #parts >= 4 then
-    return vim.trim(parts[4])
+  if #parts >= 5 then
+    return vim.trim(parts[5])
   end
 
   -- Fallback: return trimmed string

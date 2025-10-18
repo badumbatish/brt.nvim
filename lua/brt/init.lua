@@ -6,6 +6,8 @@ local brt = {}
 local successful_msg = "✅ BRT successfully! Terminal closed automatically. Resivit ouput via :BRTLog."
 local fallure_msg = "❌ BRT failed! Check the terminal and quickfix for details. Resivit ouput via :BRTLog."
 local log_file = vim.fn.stdpath("data") .. "/brt.log"
+local errorformat = vim.o.errorformat
+errorformat = errorformat .. ',%-G%\\d\\+%%%\\ \\[.*ETA:.*'
 
 local function set_quickfix_from_output(output_clean)
   local lines = {}
@@ -15,7 +17,7 @@ local function set_quickfix_from_output(output_clean)
         vim.list_extend(lines, vim.split(s, "\n", { trimempty = true }))
       end)
 
-  vim.fn.setqflist({}, 'r', { lines = lines, efm = vim.o.errorformat })
+  vim.fn.setqflist({}, 'r', { lines = lines, efm = errorformat })
 
   local filtered = {}
   for _, e in ipairs(vim.fn.getqflist()) do
@@ -59,49 +61,35 @@ function brt.execute_with_quickfix(cmd, cmd_key)
   vim.api.nvim_win_set_buf(0, term_buf)
   local term_win = vim.api.nvim_get_current_win()
 
-  local output_data = {}
-  local has_stderr = false
-
-  local job_id = vim.fn.jobstart(cmd, {
+  local tee_cmd = string.format("bash -o pipefail -c %q", cmd .. " 2>&1 | tee " .. vim.fn.shellescape(log_file))
+  vim.fn.jobstart(tee_cmd, {
     cwd = vim.uv.cwd(),
     term = true, -- pipe output to terminal
-    on_stdout = function(_, data, _)
-      if data then
-        vim.list_extend(output_data, data)
-      end
-    end,
-    on_stderr = function(_, data, _)
-      if data then
-        vim.list_extend(output_data, data)
-        has_stderr = true
-      end
-    end,
+    -- stderr_buffered = true,
+    -- stdout_buffered = true,
     on_exit = function(_, exit_code)
       vim.schedule(function()
-        local output_clean = strip_ansi_and_emptylines(table.concat(output_data, "\n"))
-        set_quickfix_from_output(output_clean)
+        -- Read log file content
+        local log_content = ""
+        local f = io.open(log_file, "r")
+        if f then
+          log_content = f:read("*a")
+          f:close()
+        end
+
+        -- Strip ANSI escape codes and empty lines
+        local output_clean = strip_ansi_and_emptylines(log_content or "")
 
         -- Determine success: 1 if exit_code is 0 and no stderr, 0 otherwise
         local bool_success = exit_code == 0
         local success = (bool_success and 1) or 0
 
+        if not bool_success then
+          set_quickfix_from_output(output_clean)
+        end
         -- Save command to database with success status
         brt_db.save_command(cmd, cmd_key, success)
 
-        -- Save to file
-        local f, err = io.open(log_file, "w")
-        if f then
-          local cwd = vim.loop.cwd() -- or os.getenv("PWD")
-          -- TODO: Add git commit, branch and repo
-          f:write("pwd        : " .. cwd .. "\n")
-          f:write("command    : " .. cmd .. "\n")
-          f:write("exit code  : " .. exit_code .. "\n")
-          f:write("output     :\n" .. output_clean .. "\n")
-
-          f:close()
-        else
-          vim.notify("Failed to write BRT log: " .. err, vim.log.levels.ERROR)
-        end
         -- If no error and exit_code is 0, close terminal
         if bool_success then
           if vim.api.nvim_win_is_valid(term_win) then
@@ -227,6 +215,7 @@ function brt.populate_data(current_dir)
 end
 
 function brt.check_and_execute(op)
+  vim.api.nvim_echo({ { "", "None" } }, false, {})
   local valid_ops = {
     build_command = "build_command",
     run_command = "run_command",
@@ -259,7 +248,7 @@ function brt.check_and_execute(op)
     query = last_cmd or "",
     winopts = {
       height     = 0.4,
-      width      = 0.8,
+      width      = 0.6,
       row        = 0.5,
       col        = 0.5,
       border     = "rounded",
@@ -268,7 +257,7 @@ function brt.check_and_execute(op)
     fzf_opts = {
       -- Start with no selection
       ["--no-select-1"] = "",
-      ["--nth"] = 4,
+      ["--nth"] = 5,
       ["--delimiter"] = "|",
       ["--ghost"] = "...", -- ANSI: italic + gray
     },
