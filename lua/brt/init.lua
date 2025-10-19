@@ -1,6 +1,7 @@
 local brt_config = require("brt.config")
 local brt_util = require("brt.util")
 local brt_db = require("brt.db")
+local brt_context = require("brt.context")
 
 local brt = {}
 local successful_msg = "✅ BRT successfully! Terminal closed automatically. Resivit ouput via :BRTLog."
@@ -60,8 +61,17 @@ function brt.execute_with_quickfix(cmd, cmd_key)
   vim.api.nvim_win_set_buf(0, term_buf)
   local term_win = vim.api.nvim_get_current_win()
 
+
   local time_stamp = os.time()
-  local tee_cmd = string.format("bash -o pipefail -c %q", cmd .. " 2>&1 | tee " .. vim.fn.shellescape(log_file))
+  -- Write context info to log file first
+  local context_info = brt_context.get_context_info(cmd, time_stamp)
+  local f = io.open(log_file, "w")
+  if f then
+    f:write(context_info)
+    f:close()
+  end
+
+  local tee_cmd = string.format("bash -o pipefail -c %q", cmd .. " 2>&1 | tee -a " .. vim.fn.shellescape(log_file))
   vim.fn.jobstart(tee_cmd, {
     cwd = vim.uv.cwd(),
     term = true, -- pipe output to terminal
