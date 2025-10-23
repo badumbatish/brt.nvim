@@ -9,6 +9,9 @@ local fallure_msg = "❌ BRT failed! Check the terminal and quickfix for details
 local log_file = vim.fn.stdpath("data") .. "/brt.log"
 local errorformat = vim.o.errorformat
 
+-- Track previous terminal buffer and window for cleanup
+local prev_term_buf = nil
+local prev_term_win = nil
 -- This is to make sure timestamp doesn't get it, as well as ETA
 errorformat = '%-GTimestamp:%.%#,' .. errorformat .. ',%-G%\\d\\+%%%\\ \\[.*ETA:.*'
 local function set_quickfix_from_output(output_clean)
@@ -54,6 +57,19 @@ end
 -- @param cmd_key string|nil: The command type (build_command, run_command, etc.) for saving to database
 function brt.execute_with_quickfix(cmd, cmd_key)
   if cmd == "" then return end
+
+  -- Clean up previous terminal window and buffer
+  if prev_term_win and vim.api.nvim_win_is_valid(prev_term_win) then
+    vim.api.nvim_win_close(prev_term_win, true)
+  end
+  if prev_term_buf and vim.api.nvim_buf_is_valid(prev_term_buf) then
+    vim.api.nvim_buf_delete(prev_term_buf, { force = true })
+  end
+
+  -- Clear quickfix list
+  vim.fn.setqflist({}, 'r')
+  vim.cmd('cclose')
+
   local prev_win = vim.api.nvim_get_current_win()
   local prev_cursor = vim.api.nvim_win_get_cursor(prev_win) -- {row, col}
   -- 1. Terminal at bottom
@@ -63,8 +79,13 @@ function brt.execute_with_quickfix(cmd, cmd_key)
   vim.api.nvim_win_set_buf(0, term_buf)
   local term_win = vim.api.nvim_get_current_win()
 
+  -- Store for cleanup on next execution
+  prev_term_buf = term_buf
+  prev_term_win = term_win
+
 
   local time_stamp = os.time()
+  local start_time = vim.loop.hrtime() -- High resolution timer for duration
   -- Write context info to log file first
   local context_info = brt_context.get_context_info(cmd, time_stamp)
   local f = io.open(log_file, "w")
@@ -81,13 +102,31 @@ function brt.execute_with_quickfix(cmd, cmd_key)
     -- stdout_buffered = true,
     on_exit = function(_, exit_code)
       vim.schedule(function()
-        -- Read log file content
-        local log_content = ""
-        local f = io.open(log_file, "r")
-        if f then
-          log_content = f:read("*a")
-          f:close()
+        -- Calculate duration
+        local end_time = vim.loop.hrtime()
+        local duration_ns = end_time - start_time
+        local duration_s = duration_ns / 1e9
+        local duration_str = brt_db.format_time_friendly(duration_s)
+
+        -- Update exit code and duration in place using vim.fn for efficiency
+        local lines = vim.fn.readfile(log_file)
+        local replaced = 0
+        for i, line in ipairs(lines) do
+          if line:match("^Exit Code: %?") then
+            lines[i] = "Exit Code: " .. exit_code
+            replaced = replaced + 1
+          elseif line:match("^Duration: %?") then
+            lines[i] = "Duration: " .. duration_str
+            replaced = replaced + 1
+          end
+          if replaced == 2 then
+            break
+          end
         end
+        vim.fn.writefile(lines, log_file)
+
+        -- Read log file content for quickfix
+        local log_content = table.concat(lines, "\n")
 
         -- Strip ANSI escape codes and empty lines
         local output_clean = strip_ansi_and_emptylines(log_content or "")
@@ -99,7 +138,7 @@ function brt.execute_with_quickfix(cmd, cmd_key)
           set_quickfix_from_output(output_clean)
         end
         -- Save command to database with success status
-        brt_db.save_command(cmd, cmd_key, exit_code, time_stamp)
+        brt_db.save_command(cmd, cmd_key, exit_code, time_stamp, duration_s)
 
         -- If no error and exit_code is 0, close terminal
         if bool_success then

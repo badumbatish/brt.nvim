@@ -71,7 +71,7 @@ end
 -- @param command string: The command to save
 -- @param cmd_type string: The type of command (build_command, run_command, test_command, debug_command)
 -- @param success_val number|nil: 1 for success, 0 for failure (optional, defaults to 2 ())
-function db.save_command(command, cmd_type, exit_code, timestamp)
+function db.save_command(command, cmd_type, exit_code, timestamp, duration)
   if not command or command == "" then
     return false
   end
@@ -84,8 +84,6 @@ function db.save_command(command, cmd_type, exit_code, timestamp)
   local conn = get_db()
   if not conn then return false end
 
-  local now = os.time()
-
   -- Check if command exists
   local existing = conn.commands:get({ where = { command = command } })
 
@@ -93,7 +91,7 @@ function db.save_command(command, cmd_type, exit_code, timestamp)
     conn.commands:update({
       where = { command = command },
       set = {
-        duration = now - timestamp,
+        duration = duration,
         last_inputted = timestamp,
         times_inputted = existing[1].times_inputted + 1,
         type = cmd_type,
@@ -105,7 +103,7 @@ function db.save_command(command, cmd_type, exit_code, timestamp)
     conn.commands:insert(db.fields_initializer(
       command,
       cmd_type,
-      now - timestamp,
+      duration,
       1,
       timestamp,
       exit_code))
@@ -160,31 +158,37 @@ function db.get_last_command(cmd_type)
 end
 
 -- Format time to friendly relative time
--- @param timestamp number: Unix timestamp
+-- @param duration number: Duration in seconds
 -- @return string: Formatted time string
-local function format_time_friendly(duration)
+function db.format_time_friendly(duration)
   if not duration or duration == 0 then
     return "----"
   end
 
   local str_time = ""
-  if duration < 60 then
-    str_time = duration .. "s"
+  if duration < 1 then
+    str_time = math.floor(duration * 1000) .. "ms"
+  elseif duration < 60 then
+    str_time = string.format("%.1fs", duration)
   elseif duration < 3600 then
-    str_time = math.floor(duration / 60) .. "m"
+    local mins = math.floor(duration / 60)
+    local secs = math.floor(duration % 60)
+    str_time = string.format("%dm%ds", mins, secs)
   elseif duration < 86400 then
-    str_time = math.floor(duration / 3600) .. "h"
+    local hours = math.floor(duration / 3600)
+    local mins = math.floor((duration % 3600) / 60)
+    str_time = string.format("%dh%dm", hours, mins)
   elseif duration < 604800 then
-    str_time = math.floor(duration / 86400) .. "d"
+    str_time = math.floor(duration / 86400) .. " days"
   elseif duration < 2592000 then
-    str_time = math.floor(duration / 604800) .. "w"
+    str_time = math.floor(duration / 604800) .. "wks"
   elseif duration < 31556926 then
-    str_time = math.floor(duration / 2592000) .. "M"
+    str_time = math.floor(duration / 2592000) .. " mths"
   else
-    str_time = math.floor(duration / 31556926) .. "y"
+    str_time = math.floor(duration / 31556926) .. " yrs"
   end
 
-  return "~" .. str_time
+  return str_time
 end
 
 -- Format a command record for display in fzf-lua
@@ -194,26 +198,22 @@ function db.format_command_for_display(record)
   if not record or type(record) ~= "table" then
     return ""
   end
-  local success = ""
   local command = record.command or ""
   local cmd_type = record.type or "unknown"
   local duration = record.duration or 0
   local times_inputted = record.times_inputted or 0
   local exit_code = tostring(record.exit_code or 0)
 
-  local time_str = format_time_friendly(duration)
+  local time_str = db.format_time_friendly(duration)
   local type_str = cmd_type:gsub("_command", "")
 
   if (times_inputted == 0) then
-    success = "⚪"
     exit_code = "\27[90m" .. string.format("%9s", "~~~") .. "\27[0m" -- Gray for never run
     time_str = string.format("%8s", time_str)
   elseif (exit_code ~= "0") then
-    success = "❌"
     exit_code = "\27[31m" .. string.format("%9s", exit_code) .. "\27[0m" -- Red for failure
     time_str = "\27[31m" .. string.format("%8s", time_str) .. "\27[0m" -- Red for failure
   else
-    success = "✅"
     exit_code = "\27[32m" .. string.format("%9s", exit_code) .. "\27[0m" -- Green for success
     time_str = "\27[32m" .. string.format("%8s", time_str) .. "\27[0m" -- Red for failure
   end

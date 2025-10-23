@@ -28,6 +28,8 @@ function M.get_context_info(cmd, timestamp)
 
   table.insert(info, "Working Directory: " .. vim.uv.cwd())
   table.insert(info, "Command: " .. cmd)
+  table.insert(info, "Exit Code: ?")
+  table.insert(info, "Duration: ?")
   table.insert(info, "Timestamp: " .. os.date("%Y-%m-%d %H:%M:%S", timestamp))
   table.insert(info, string.rep("-", 80))
 
