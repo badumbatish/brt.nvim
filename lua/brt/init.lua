@@ -8,7 +8,9 @@ local successful_msg = "✅ BRT successfully! Terminal closed automatically. Res
 local fallure_msg = "❌ BRT failed! Check the terminal and quickfix for details. Resivit ouput via :BRTLog."
 local log_file = vim.fn.stdpath("data") .. "/brt.log"
 local errorformat = vim.o.errorformat
-errorformat = errorformat .. ',%-G%\\d\\+%%%\\ \\[.*ETA:.*'
+
+-- This is to make sure timestamp doesn't get it, as well as ETA
+errorformat = '%-GTimestamp:%.%#,' .. errorformat .. ',%-G%\\d\\+%%%\\ \\[.*ETA:.*'
 local function set_quickfix_from_output(output_clean)
   local lines = {}
   vim.iter({ output_clean })
