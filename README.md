@@ -1,5 +1,4 @@
 # BRT
-
 Hi everyone! Welcome to my first plugin: BRT (Build, Run, and Test, (and Debug))
 
 The plugin helps automate/alleviate the process of building, running and testing your code.
@@ -8,9 +7,9 @@ Once the commands finish running, it pipes errors (only error for now) into a qu
 
 It also remembers every prompt you give it for all 4 commands, just like atuin.
 ## Demo
-See the plugin in action below:
+See the plugin in action in the following video.
 
-[![asciicast](https://asciinema.org/a/672407.svg)](https://asciinema.org/a/672407)
+https://youtu.be/sIxkQYV4yMM
 
 ## Keymaps
 
@@ -32,6 +31,7 @@ return {
  "badumbatish/brt.nvim",
   dependencies = {
     "ibhagwan/fzf-lua",  -- add fzf-lua as a dependency
+    'kkharji/sqlite.lua', -- sqlite is also needed
   },
 
  config = function()
