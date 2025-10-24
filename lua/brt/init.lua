@@ -4,8 +4,8 @@ local brt_db = require("brt.db")
 local brt_context = require("brt.context")
 
 local brt = {}
-local successful_msg = "✅ BRT successfully! Terminal closed automatically. Resivit ouput via :BRTLog."
-local fallure_msg = "❌ BRT failed! Check the terminal and quickfix for details. Resivit ouput via :BRTLog."
+local successful_msg = "✅ BRT successfully! Terminal closed automatically. Resivit output via :BRTLog."
+local fallure_msg = "❌ BRT failed! Check the terminal and quickfix for details. Resivit output via :BRTLog."
 local log_file = vim.fn.stdpath("data") .. "/brt.log"
 local errorformat = vim.o.errorformat
 
