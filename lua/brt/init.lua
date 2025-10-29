@@ -94,7 +94,7 @@ function brt.execute_with_quickfix(cmd, cmd_key)
     f:close()
   end
 
-  local tee_cmd = string.format("bash -o pipefail -c %q", cmd .. " 2>&1 | tee -a " .. vim.fn.shellescape(log_file))
+  local tee_cmd = string.format("%s  -o pipefail -c %q", vim.o.shell, cmd .. " 2>&1 | tee -a " .. vim.fn.shellescape(log_file))
   vim.fn.jobstart(tee_cmd, {
     cwd = vim.uv.cwd(),
     term = true, -- pipe output to terminal
@@ -155,7 +155,12 @@ function brt.execute_with_quickfix(cmd, cmd_key)
 
         if vim.api.nvim_win_is_valid(prev_win) then
           vim.api.nvim_set_current_win(prev_win)
-          vim.api.nvim_win_set_cursor(prev_win, prev_cursor)
+          -- Only restore cursor if we're still in the same buffer
+          local prev_buf = vim.api.nvim_win_get_buf(prev_win)
+          local lines = vim.api.nvim_buf_line_count(prev_buf)
+          if prev_cursor[1] <= lines then
+            vim.api.nvim_win_set_cursor(prev_win, prev_cursor)
+          end
         end
       end)
     end,
