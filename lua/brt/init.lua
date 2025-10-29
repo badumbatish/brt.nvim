@@ -190,7 +190,7 @@ function brt.handle_quit()
   while true do
     local bufnr = vim.api.nvim_get_current_buf()
     if is_quittable(bufnr) then
-      vim.cmd("q")
+      vim.cmd("wq!")
       has_quit = true
     else
       break
@@ -198,7 +198,7 @@ function brt.handle_quit()
   end
 
   if (not has_quit) then
-    vim.cmd("q")
+    vim.cmd("wq!")
   end
 end
 
