@@ -8,36 +8,11 @@ local brt = {}
 local successful_msg = "✅ BRT successfully! Terminal closed automatically. Resivit output via :BRTLog."
 local fallure_msg = "❌ BRT failed! Check the terminal and quickfix for details. Resivit output via :BRTLog."
 local log_file = vim.fn.stdpath("data") .. "/brt.log"
-local errorformat = vim.o.errorformat
 
 -- Track previous terminal buffer and window for cleanup
 local prev_term_buf = nil
 local prev_term_win = nil
 -- This is to make sure timestamp doesn't get it, as well as ETA
-errorformat = '%-GTimestamp:%.%#,' .. errorformat .. ',%-G%\\d\\+%%%\\ \\[.*ETA:.*'
-local function set_quickfix_from_output(output_clean)
-  local lines = {}
-  vim.iter({ output_clean })
-      :filter(function(s) return s and s ~= "" end)
-      :each(function(s)
-        vim.list_extend(lines, vim.split(s, "\n", { trimempty = true }))
-      end)
-
-  vim.fn.setqflist({}, 'r', { lines = lines, efm = errorformat })
-
-  local filtered = {}
-  for _, e in ipairs(vim.fn.getqflist()) do
-    if e.valid == 1 then
-      table.insert(filtered, e)
-    end
-  end
-
-  vim.fn.setqflist(filtered, 'r')
-  if #filtered > 0 then
-    vim.cmd('vertical rightbelow copen')
-    vim.cmd('wincmd =')
-  end
-end
 
 local function strip_ansi_and_emptylines(s)
   if not s then return "" end
@@ -136,7 +111,7 @@ function brt.execute_with_quickfix(cmd, cmd_key)
         local bool_success = exit_code == 0
 
         if not bool_success then
-          set_quickfix_from_output(output_clean)
+          brt_qf.set_quickfix_from_output(output_clean)
         end
         -- Save command to database with success status
         brt_db.save_command(cmd, cmd_key, exit_code, time_stamp, duration_s)

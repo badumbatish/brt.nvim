@@ -2,6 +2,9 @@ local M = {}
 M.patterns = {
   "%(lldb%) bt"
 }
+M.errorformat = vim.o.errorformat
+M.errorformat = '%-GTimestamp:%.%#,' .. M.errorformat .. ',%-G%\\d\\+%%%\\ \\[.*ETA:.*'
+
 M.tail_lines_from_end = function(path, patterns)
   local f = assert(io.open(path, "rb"))
   if not patterns then
@@ -89,6 +92,29 @@ M.test_helper = function()
   vim.cmd('copen')
 end
 
+M.set_quickfix_from_output = function(output_clean)
+  local lines = {}
+  vim.iter({ output_clean })
+      :filter(function(s) return s and s ~= "" end)
+      :each(function(s)
+        vim.list_extend(lines, vim.split(s, "\n", { trimempty = true }))
+      end)
+
+  vim.fn.setqflist({}, 'r', { lines = lines, efm = M.errorformat })
+
+  local filtered = {}
+  for _, e in ipairs(vim.fn.getqflist()) do
+    if e.valid == 1 then
+      table.insert(filtered, e)
+    end
+  end
+
+  vim.fn.setqflist(filtered, 'r')
+  if #filtered > 0 then
+    vim.cmd('vertical rightbelow copen')
+    vim.cmd('wincmd =')
+  end
+end
 
 vim.keymap.set("n", "<leader>ld", M.test_helper, { desc = "help test"})
 
