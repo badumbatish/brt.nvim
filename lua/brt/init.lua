@@ -1,6 +1,7 @@
 local brt_config = require("brt.config")
 local brt_util = require("brt.util")
 local brt_db = require("brt.db")
+local brt_qf = require("brt.quickfix")
 local brt_context = require("brt.context")
 
 local brt = {}
@@ -190,7 +191,7 @@ function brt.handle_quit()
   while true do
     local bufnr = vim.api.nvim_get_current_buf()
     if is_quittable(bufnr) then
-      vim.cmd("wq!")
+      vim.cmd("q")
       has_quit = true
     else
       break
