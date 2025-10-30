@@ -31,9 +31,9 @@ function M.get_context_info(cmd, timestamp)
   table.insert(info, "Exit Code: ?")
   table.insert(info, "Duration: ?")
   table.insert(info, "Timestamp: " .. os.date("%Y-%m-%d %H:%M:%S", timestamp))
-  table.insert(info, string.rep("-", 80))
+  table.insert(info, string.rep("-", 140))
 
-  return table.concat(info, "\n") .. "\n"
+  return info
 end
 
 return M

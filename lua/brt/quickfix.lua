@@ -1,98 +1,45 @@
 local M = {}
 M.patterns = {
-  "%(lldb%) bt"
+  "%(lldb%)"
 }
 M.errorformat = vim.o.errorformat
 M.errorformat = '%-GTimestamp:%.%#,' .. M.errorformat .. ',%-G%\\d\\+%%%\\ \\[.*ETA:.*'
 
-M.tail_lines_from_end = function(path, patterns)
-  local f = assert(io.open(path, "rb"))
-  if not patterns then
-    patterns = M.patterns
+M.scan_until = function(bufnr, patterns)
+  -- default to current buffer
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  patterns = patterns or M.patterns
+
+  local n = vim.api.nvim_buf_line_count(bufnr)
+  local out = {}
+
+  local start_line = n
+  -- find the last '(lldb)' prompt line
+  for i = n, 1, -1 do
+    local line = vim.api.nvim_buf_get_lines(bufnr, i - 1, i, false)[1]
+    if line and line:match("^%s*%(%s*lldb%)") then
+      start_line = i
+      break
+    end
   end
-  local function match_any(line)
+
+  -- scan backwards from the lldb prompt
+  for i = start_line - 1, 1, -1 do
+    local line = vim.api.nvim_buf_get_lines(bufnr, i - 1, i, false)[1]
+    if not line then break end
+
+    table.insert(out, 1, line)
+
     for _, pat in ipairs(patterns) do
-      if line:find(pat) then return true end
-    end
-    return false
-  end
-
-  local pos = f:seek("end")
-  local buffer = {}
-  local current = {}
-
-  while pos > 0 do
-    pos = pos - 1
-    f:seek("set", pos)
-    local byte = f:read(1)
-
-    if byte == "\n" then
-      -- complete line found, reverse it
-      local line = table.concat(current):reverse()
-      current = {}
-      if match_any(line) then
-        -- hit a stopping pattern: drop line and quit
-        f:close()
-        -- lines currently in `buffer` are reversed in order
-        -- so fix ordering
-        local out = {}
-        for i = #buffer, 1, -1 do
-          table.insert(out, buffer[i])
-        end
+      if line:find(pat) then
         return out
-      else
-        table.insert(buffer, line)
       end
-    else
-      table.insert(current, byte)
     end
   end
 
-  -- reached BOF without a match
-  f:close()
-  return nil
+  return nil -- pattern not found
 end
-
-M.test_helper = function()
-  local x = M.tail_lines_from_end("/Users/jjasmine/.local/share/nvim/brt.log")
-  if not x then
-    vim.print("Nothing extracted")
-    return
-  end
-
-  -- Clear quickfix list first
-  vim.fn.setqflist({}, 'r')
-
-  -- Manually parse lldb backtrace format: "frame #N: address binary`function at file:line:column"
-  local qf_entries = {}
-  for _, line in ipairs(x) do
-    -- Match pattern: "at filename:line:column" or "at filename:line"
-    local filename, lnum, col = line:match("at ([^:]+):(%d+):(%d+)")
-    if not filename then
-      filename, lnum = line:match("at ([^:]+):(%d+)")
-      col = nil
-    end
-
-    if filename and lnum then
-      table.insert(qf_entries, {
-        filename = filename,
-        lnum = tonumber(lnum),
-        col = col and tonumber(col) or 1,
-        text = line:match("frame #%d+: .+`(.+)") or line,
-      })
-    end
-  end
-
-  -- Set quickfix list with parsed entries
-  vim.fn.setqflist(qf_entries, 'r')
-
-  vim.print("Parsed " .. #qf_entries .. " entries")
-
-  -- Open quickfix window
-  vim.cmd('copen')
-end
-
-M.set_quickfix_from_output = function(output_clean)
+M.set_quickfix_from_debug = function(output_clean)
   local lines = {}
   vim.iter({ output_clean })
       :filter(function(s) return s and s ~= "" end)
@@ -100,7 +47,60 @@ M.set_quickfix_from_output = function(output_clean)
         vim.list_extend(lines, vim.split(s, "\n", { trimempty = true }))
       end)
 
-  vim.fn.setqflist({}, 'r', { lines = lines, efm = M.errorformat })
+  vim.fn.setqflist({}, 'r', { lines = lines })
+
+  -- Join wrapped lines before parsing
+  local all_lines = vim.split(output_clean, "\n", { trimempty = false })
+  local joined_lines = {}
+  local current_line = ""
+
+  for _, line in ipairs(all_lines) do
+    -- If line starts with "frame #" (with optional * or whitespace prefix), it's a new frame
+    if line:match("^%s*%*?%s*frame #") then
+      if current_line ~= "" then
+        table.insert(joined_lines, current_line)
+      end
+      current_line = line
+    else
+      -- Continuation of previous line
+      current_line = current_line .. line
+    end
+  end
+
+  -- Don't forget the last line
+  if current_line ~= "" then
+    table.insert(joined_lines, current_line)
+  end
+
+  local filtered = {}
+  for _, line in ipairs(joined_lines) do
+    local file, lineno = line:match(" at (/.+):(%d+)")
+    if file and lineno then
+      table.insert(filtered, { filename = file, lnum = tonumber(lineno), text = line })
+    end
+  end
+  vim.fn.setqflist(filtered)
+  if #filtered > 0 then
+    vim.cmd('vertical rightbelow copen')
+    vim.cmd('wincmd =')
+    return true
+  end
+  return false
+end
+
+M.set_quickfix_from_output = function(output_clean, efm)
+  local lines = {}
+  vim.iter({ output_clean })
+      :filter(function(s) return s and s ~= "" end)
+      :each(function(s)
+        vim.list_extend(lines, vim.split(s, "\n", { trimempty = true }))
+      end)
+
+  if (not efm) then
+    efm = M.errorformat
+  end
+
+  vim.fn.setqflist({}, 'r', { lines = lines, efm = efm })
 
   local filtered = {}
   for _, e in ipairs(vim.fn.getqflist()) do
@@ -116,6 +116,5 @@ M.set_quickfix_from_output = function(output_clean)
   end
 end
 
-vim.keymap.set("n", "<leader>ld", M.test_helper, { desc = "help test"})
 
 return M

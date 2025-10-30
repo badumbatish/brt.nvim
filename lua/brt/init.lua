@@ -12,8 +12,24 @@ local log_file = vim.fn.stdpath("data") .. "/brt.log"
 -- Track previous terminal buffer and window for cleanup
 local prev_term_buf = nil
 local prev_term_win = nil
+local prev_normal = nil
+local prev_cursor = nil
 -- This is to make sure timestamp doesn't get it, as well as ETA
 
+local function redirect_focus_to_normal_window()
+  if (prev_normal == nil or prev_cursor == nil) then
+    return
+  end
+  if vim.api.nvim_win_is_valid(prev_normal) then
+    vim.api.nvim_set_current_win(prev_normal)
+    -- Only restore cursor if we're still in the same buffer
+    local prev_buf = vim.api.nvim_win_get_buf(prev_normal)
+    local lines = vim.api.nvim_buf_line_count(prev_buf)
+    if prev_cursor[1] <= lines then
+      vim.api.nvim_win_set_cursor(prev_normal, prev_cursor)
+    end
+  end
+end
 local function strip_ansi_and_emptylines(s)
   if not s then return "" end
   -- Remove ANSI escape sequences
@@ -46,8 +62,8 @@ function brt.execute_with_quickfix(cmd, cmd_key)
   vim.fn.setqflist({}, 'r')
   vim.cmd('cclose')
 
-  local prev_win = vim.api.nvim_get_current_win()
-  local prev_cursor = vim.api.nvim_win_get_cursor(prev_win) -- {row, col}
+  prev_normal = vim.api.nvim_get_current_win()
+  prev_cursor = vim.api.nvim_win_get_cursor(prev_normal) -- {row, col}
   -- 1. Terminal at bottom
   vim.cmd("botright split")
   vim.cmd("resize 15")
@@ -62,16 +78,21 @@ function brt.execute_with_quickfix(cmd, cmd_key)
 
   local time_stamp = os.time()
   local start_time = vim.loop.hrtime() -- High resolution timer for duration
+
+  -- local tee_cmd = string.format("%s  -o pipefail -c %q", vim.o.shell,
+  --   cmd .. " 2>&1 | tee -a " .. vim.fn.shellescape(log_file))
+  -- local script_cmd = string.format("script -aqU %s %s -c \"%s\"", vim.fn.shellescape(log_file), vim.o.shell, cmd)
+
   -- Write context info to log file first
-  local context_info = brt_context.get_context_info(cmd, time_stamp)
+  local context_info = brt_context.get_context_info(cmd , time_stamp)
   local f = io.open(log_file, "w")
   if f then
-    f:write(context_info)
+    f:write(table.concat(context_info, "\n") .. "\n")
     f:close()
   end
 
-  local tee_cmd = string.format("%s  -o pipefail -c %q", vim.o.shell, cmd .. " 2>&1 | tee -a " .. vim.fn.shellescape(log_file))
-  vim.fn.jobstart(tee_cmd, {
+  -- vim.print(script_cmd)
+  vim.fn.jobstart(cmd, {
     cwd = vim.uv.cwd(),
     term = true, -- pipe output to terminal
     -- stderr_buffered = true,
@@ -84,6 +105,13 @@ function brt.execute_with_quickfix(cmd, cmd_key)
         local duration_s = duration_ns / 1e9
         local duration_str = brt_db.format_time_friendly(duration_s)
 
+        -- Read terminal buffer contents and append to log file
+        local term_lines = vim.api.nvim_buf_get_lines(term_buf, 0, -1, false)
+        local f = io.open(log_file, "a")
+        if f then
+          f:write(table.concat(term_lines, "\n") .. "\n")
+          f:close()
+        end
         -- Update exit code and duration in place using vim.fn for efficiency
         local lines = vim.fn.readfile(log_file)
         local replaced = 0
@@ -129,15 +157,7 @@ function brt.execute_with_quickfix(cmd, cmd_key)
           vim.print(fallure_msg)
         end
 
-        if vim.api.nvim_win_is_valid(prev_win) then
-          vim.api.nvim_set_current_win(prev_win)
-          -- Only restore cursor if we're still in the same buffer
-          local prev_buf = vim.api.nvim_win_get_buf(prev_win)
-          local lines = vim.api.nvim_buf_line_count(prev_buf)
-          if prev_cursor[1] <= lines then
-            vim.api.nvim_win_set_cursor(prev_win, prev_cursor)
-          end
-        end
+        redirect_focus_to_normal_window()
       end)
     end,
   })
@@ -174,7 +194,7 @@ function brt.handle_quit()
   end
 
   if (not has_quit) then
-    vim.cmd("wq!")
+    vim.cmd("q")
   end
 end
 
@@ -355,6 +375,25 @@ function brt.setup(opts)
   vim.api.nvim_set_keymap('n', brt_config.keymaps["quickfix_warning"],
     '<cmd>lua require("brt").lsp_to_quickfix("W", false)<CR>',
     { noremap = true, silent = true })
+  vim.keymap.set('n', brt_config.keymaps["quickfix_debug_terminal"],
+    function()
+      -- Check if terminal buffer exists
+      if not prev_term_buf or not vim.api.nvim_buf_is_valid(prev_term_buf) then
+        vim.notify("No terminal spawned yet via debug", vim.log.levels.WARN)
+        return
+      end
+
+      local x = brt_qf.scan_until(prev_term_buf)
+      if (x == nil) then
+        return
+      end
+      local s = strip_ansi_and_emptylines(table.concat(x, "\n"))
+      local has_error = brt_qf.set_quickfix_from_debug(s)
+      if (has_error == false) then
+        vim.print("No parsable error from the debug session")
+      end
+    end,
+    { noremap = true, silent = true, desc = "quickfix_debug_terminal" })
 end
 
 function brt.set_keymaps(keymaps)
