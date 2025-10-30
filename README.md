@@ -58,7 +58,8 @@ return {
     config = function()
 
     local brt_config = {}
-
+    
+    -- default config, you don't need to change anything
     brt_config.keymaps = {
         ["build"] = "<leader>b",
         ["run"] = "<leader>r",
@@ -67,9 +68,10 @@ return {
         ["quit_tab"] = "<leader>q",
         ["quickfix_error"] = "<leader>le",
         ["quickfix_warning"] = "<leader>lw"
+        ["quickfix_debug_terminal"] = "<leader>ld",
     }
 
-    require('brt').setup()
+    require('brt').setup(brt_config)
 end
 }
 ```
