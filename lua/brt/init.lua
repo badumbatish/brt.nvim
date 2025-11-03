@@ -84,7 +84,7 @@ function brt.execute_with_quickfix(cmd, cmd_key)
   -- local script_cmd = string.format("script -aqU %s %s -c \"%s\"", vim.fn.shellescape(log_file), vim.o.shell, cmd)
 
   -- Write context info to log file first
-  local context_info = brt_context.get_context_info(cmd , time_stamp)
+  local context_info = brt_context.get_context_info(cmd, time_stamp)
   local f = io.open(log_file, "w")
   if f then
     f:write(table.concat(context_info, "\n") .. "\n")
@@ -170,13 +170,13 @@ function brt.handle_quit()
     local filetype = vim.api.nvim_get_option_value("filetype", { buf = bufnr })
 
     if buftype == "terminal" then
-      return true
+      return true, "terminal"
     end
     if filetype == "quickfix" then
-      return true
+      return true, "quickfix"
     end
     if name == "" then
-      return true
+      return true, "empty"
     end
     return false
   end
@@ -185,12 +185,22 @@ function brt.handle_quit()
   -- Keep quitting buffers until we hit a quittable one
   while true do
     local bufnr = vim.api.nvim_get_current_buf()
-    if is_quittable(bufnr) then
-      vim.cmd("q")
-      has_quit = true
-    else
-      break
+    local ok, kind = is_quittable(bufnr)
+     if not ok then break end
+    if kind == "terminal" then
+      local chan = vim.b[bufnr].terminal_job_id
+      if chan then
+        -- Graceful: close terminal channel → SIGHUP to child
+        local r = pcall(vim.fn.chanclose, chan)
+        if not r then
+          -- Force kill if needed
+          pcall(vim.fn.jobkill, chan)
+        end
+      end
     end
+
+    vim.cmd("q")
+    has_quit = true
   end
 
   if (not has_quit) then
@@ -200,52 +210,6 @@ end
 
 -- Convert LSP diagnostics to quickfix list
 -- severity_filter: 'E' for errors only, 'W' for warnings only, nil for all
-function brt.lsp_to_quickfix(severity_filter, is_silent)
-  local severity_map = nil
-  local buffer_scope = nil
-
-  if severity_filter == 'E' then
-    severity_map = vim.diagnostic.severity.ERROR
-    buffer_scope = nil
-  elseif severity_filter == 'W' then
-    severity_map = vim.diagnostic.severity.WARN
-    buffer_scope = 0
-  end
-
-  local diagnostics = vim.diagnostic.get(buffer_scope, severity_map and { severity = severity_map } or nil)
-  local qf_list = {}
-
-  for _, diagnostic in ipairs(diagnostics) do
-    local bufnr = diagnostic.bufnr or 0
-    local filename = vim.api.nvim_buf_get_name(bufnr)
-
-    -- Since we're filtering by severity, we know the type
-    local type = severity_filter or 'I'
-
-    table.insert(qf_list, {
-      filename = filename,
-      lnum = diagnostic.lnum + 1, -- LSP is 0-indexed, quickfix is 1-indexed
-      col = diagnostic.col + 1,
-      type = type,
-      text = diagnostic.message,
-    })
-  end
-
-  -- Set the quickfix list
-  if #qf_list > 0 then
-    vim.fn.setqflist(qf_list, 'r')
-    if (not is_silent) then
-      vim.cmd('copen')
-    elseif (severity_filter == 'E') then
-      vim.print("Populated quickfix list of all errors")
-    else
-      vim.print("Populated quickfix list of current buffer warnings")
-    end
-  else
-    local filter_msg = severity_filter and (" " .. (severity_filter == 'E' and "errors" or "warnings")) or "s"
-    vim.notify("No LSP diagnostic" .. filter_msg .. " found", vim.log.levels.INFO)
-  end
-end
 
 function brt.check_and_execute(op)
   vim.api.nvim_echo({ { "", "None" } }, false, {})
@@ -355,7 +319,7 @@ function brt.setup(opts)
   end
 
 
-  vim.api.nvim_set_keymap('n', brt_config.keymaps["build"],
+  vim.keymap.set('n', brt_config.keymaps["build"],
     '<cmd>lua require("brt").check_and_execute("build_command")<CR>',
     { noremap = true, silent = true })
   vim.api.nvim_set_keymap('n', brt_config.keymaps["run"],
@@ -369,16 +333,16 @@ function brt.setup(opts)
     { noremap = true, silent = true })
   vim.api.nvim_set_keymap('n', brt_config.keymaps["quit_tab"], '<cmd>lua require("brt").handle_quit()<CR>',
     { noremap = true, silent = true })
-  vim.api.nvim_set_keymap('n', brt_config.keymaps["quickfix_error"],
-    '<cmd>lua require("brt").lsp_to_quickfix("E", false)<CR>',
+  vim.keymap.set('n', brt_config.keymaps["quickfix_warning"],
+    function() brt_qf.lsp_to_quickfix("W", false) end,
     { noremap = true, silent = true })
-  vim.api.nvim_set_keymap('n', brt_config.keymaps["quickfix_warning"],
-    '<cmd>lua require("brt").lsp_to_quickfix("W", false)<CR>',
+  vim.keymap.set('n', brt_config.keymaps["quickfix_error"],
+    function() brt_qf.lsp_to_quickfix("E", false) end,
     { noremap = true, silent = true })
   vim.keymap.set('n', brt_config.keymaps["quickfix_debug_terminal"],
     function()
       -- Check if terminal buffer exists
-      if not prev_term_buf or not vim.api.nvim_buf_is_valid(prev_term_buf) then
+      if not brt_util.terminal_available(prev_term_buf) then
         vim.notify("No terminal spawned yet via debug", vim.log.levels.WARN)
         return
       end

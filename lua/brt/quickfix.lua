@@ -39,6 +39,71 @@ M.scan_until = function(bufnr, patterns)
 
   return nil -- pattern not found
 end
+
+M.lsp_to_quickfix = function(severity_filter, is_silent)
+  local buffer_scope = nil
+  local severities_by_filter = {
+    E = { min = vim.diagnostic.severity.ERROR, max = vim.diagnostic.severity.ERROR },
+    W = { min = vim.diagnostic.severity.WARN, max = vim.diagnostic.severity.HINT },
+  }
+  if severity_filter == 'E' then
+    buffer_scope = nil
+  elseif severity_filter == 'W' then
+    buffer_scope = 0
+  end
+
+  local sev_range = severities_by_filter[severity_filter]
+
+  -- Debug: Get ALL diagnostics first to see what's available
+  local all_diagnostics = vim.diagnostic.get(buffer_scope)
+  vim.print("Total diagnostics in buffer: " .. #all_diagnostics)
+  for _, d in ipairs(all_diagnostics) do
+    local sev_name = ({ "ERROR", "WARN", "INFO", "HINT" })[d.severity] or "UNKNOWN"
+    vim.print(string.format("  [%s] %s", sev_name, d.message:sub(1, 60)))
+  end
+
+  local diagnostics = vim.diagnostic.get(buffer_scope, sev_range and { severity = sev_range } or nil)
+  vim.print("Filtered diagnostics: " .. #diagnostics)
+  local qf_list = {}
+
+  for _, diagnostic in ipairs(diagnostics) do
+    local bufnr = diagnostic.bufnr or 0
+    local filename = vim.api.nvim_buf_get_name(bufnr)
+
+    -- Since we're filtering by severity, we know the type
+    local sev = diagnostic.severity
+    local type = ({
+      [vim.diagnostic.severity.ERROR] = 'E',
+      [vim.diagnostic.severity.WARN]  = 'W',
+      [vim.diagnostic.severity.INFO]  = 'I',
+      [vim.diagnostic.severity.HINT]  = 'H',
+    })[sev] or 'I'
+
+    table.insert(qf_list, {
+      filename = filename,
+      lnum = diagnostic.lnum + 1, -- LSP is 0-indexed, quickfix is 1-indexed
+      col = diagnostic.col + 1,
+      type = type,
+      text = diagnostic.message,
+    })
+  end
+
+  -- Set the quickfix list
+  if #qf_list > 0 then
+    vim.fn.setqflist(qf_list, 'r')
+    if (not is_silent) then
+      vim.cmd('copen')
+    elseif (severity_filter == 'E') then
+      vim.print("Populated quickfix list of all errors")
+    else
+      vim.print("Populated quickfix list of current buffer warnings")
+    end
+  else
+    local filter_msg = severity_filter and (" " .. (severity_filter == 'E' and "errors" or "warnings")) or "s"
+    vim.notify("No LSP diagnostic" .. filter_msg .. " found", vim.log.levels.INFO)
+  end
+end
+
 M.set_quickfix_from_debug = function(output_clean)
   local lines = {}
   vim.iter({ output_clean })

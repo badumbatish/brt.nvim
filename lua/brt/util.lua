@@ -103,4 +103,30 @@ function util.table_get(tbl, key)
   return nil
 end
 
+util.terminal_available = function(bufnr)
+  if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
+    return false
+  end
+  if not vim.api.nvim_buf_is_loaded(bufnr) then
+    return false
+  end
+
+  local buftype = vim.api.nvim_get_option_value("buftype", { buf = bufnr })
+  if buftype ~= "terminal" then
+    return false
+  end
+
+  local chan = vim.b[bufnr].terminal_job_id
+  if not chan then
+    return false
+  end
+
+  -- jobpid returns the OS pid for the job; non-positive means no running process.
+  local ok, pid = pcall(vim.fn.jobpid, chan)
+  if not ok or (type(pid) == "number" and pid <= 0) then
+    return false
+  end
+
+  return true
+end
 return util
