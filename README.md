@@ -21,7 +21,8 @@ The default keymaps are:
 <leader>t - Test
 <leader>q - Quit the brt tab (it acts as a :q)
 <leader>le - Populate the quickfix list with errors from all the buffers.
-<leader>le - Populate the quickfix list with warnings from all the current buffers.
+<leader>lw - Populate the quickfix list with warnings from all the current buffers.
+<leader>ld - Populate the quickfix list with lldb stacktrace from current BRT-spawn terminal (stacktrace between two `(lldb) ...`)
 ```
 
 ## Installation
