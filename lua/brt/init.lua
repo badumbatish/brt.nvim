@@ -310,6 +310,18 @@ function brt.check_and_execute(op)
   })
 end
 
+
+brt.open_log = function()
+  if vim.fn.filereadable(log_file) == 1 then
+    vim.cmd("tabnew " .. log_file)
+  else
+    vim.notify("No BRT log found!", vim.log.levels.WARN)
+  end
+end
+
+
+vim.api.nvim_create_user_command("BRTLog", brt.open_log, {})
+
 function brt.setup(opts)
   -- Initialize database
   brt_db.init()
@@ -332,6 +344,8 @@ function brt.setup(opts)
     '<cmd>lua require("brt").check_and_execute("debug_command")<CR>',
     { noremap = true, silent = true })
   vim.api.nvim_set_keymap('n', brt_config.keymaps["quit_tab"], '<cmd>lua require("brt").handle_quit()<CR>',
+    { noremap = true, silent = true })
+  vim.api.nvim_set_keymap('n', brt_config.keymaps["show_log"], '<cmd>lua require("brt").open_log()<CR>',
     { noremap = true, silent = true })
   vim.keymap.set('n', brt_config.keymaps["quickfix_warning"],
     function() brt_qf.lsp_to_quickfix("W", false) end,
@@ -367,13 +381,6 @@ function brt.set_keymaps(keymaps)
   end
 end
 
-vim.api.nvim_create_user_command("BRTLog", function()
-  if vim.fn.filereadable(log_file) == 1 then
-    vim.cmd("tabnew " .. log_file)
-  else
-    vim.notify("No BRT log found!", vim.log.levels.WARN)
-  end
-end, {})
 
 vim.api.nvim_create_user_command("BRTClear", function()
   -- Clear database

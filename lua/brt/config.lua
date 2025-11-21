@@ -7,6 +7,7 @@ brt_config.keymaps = {
     ["test"] = "<leader>t", -- test the project
     ["debug"] = "<leader>d", -- debug the project (this correctly enables <leader>ld)
     ["quit_tab"] = "<leader>q", -- quit quickfix list and/or terminal
+    ["show_log"] = "<leader>ll", 
     ["quickfix_warning"] = "<leader>lw",
     ["quickfix_error"] = "<leader>le",
     ["quickfix_debug_terminal"] = "<leader>ld",
