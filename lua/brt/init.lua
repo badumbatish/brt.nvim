@@ -64,7 +64,8 @@ function brt.execute_with_quickfix(cmd, cmd_key)
 
   prev_normal = vim.api.nvim_get_current_win()
   prev_cursor = vim.api.nvim_win_get_cursor(prev_normal) -- {row, col}
-  -- 1. Terminal at bottom
+
+  -- Create output window at bottom (split so you can still edit code while build runs)
   vim.cmd("botright split")
   vim.cmd("resize 15")
   local term_buf = vim.api.nvim_create_buf(false, true)
@@ -75,13 +76,8 @@ function brt.execute_with_quickfix(cmd, cmd_key)
   prev_term_buf = term_buf
   prev_term_win = term_win
 
-
   local time_stamp = os.time()
   local start_time = vim.loop.hrtime() -- High resolution timer for duration
-
-  -- local tee_cmd = string.format("%s  -o pipefail -c %q", vim.o.shell,
-  --   cmd .. " 2>&1 | tee -a " .. vim.fn.shellescape(log_file))
-  -- local script_cmd = string.format("script -aqU %s %s -c \"%s\"", vim.fn.shellescape(log_file), vim.o.shell, cmd)
 
   -- Write context info to log file first
   local context_info = brt_context.get_context_info(cmd, time_stamp)
@@ -91,12 +87,11 @@ function brt.execute_with_quickfix(cmd, cmd_key)
     f:close()
   end
 
-  -- vim.print(script_cmd)
-  vim.fn.jobstart(cmd, {
+  -- Wrap command with shell for proper glob expansion
+  local shell_cmd = { vim.o.shell, "-c", cmd }
+
+  local job_opts = {
     cwd = vim.uv.cwd(),
-    term = true, -- pipe output to terminal
-    -- stderr_buffered = true,
-    -- stdout_buffered = true,
     on_exit = function(_, exit_code)
       vim.schedule(function()
         -- Calculate duration
@@ -105,13 +100,15 @@ function brt.execute_with_quickfix(cmd, cmd_key)
         local duration_s = duration_ns / 1e9
         local duration_str = brt_db.format_time_friendly(duration_s)
 
-        -- Read terminal buffer contents and append to log file
+        -- Read buffer contents and append to log file
         local term_lines = vim.api.nvim_buf_get_lines(term_buf, 0, -1, false)
-        local f = io.open(log_file, "a")
-        if f then
-          f:write(table.concat(term_lines, "\n") .. "\n")
-          f:close()
+
+        local log_f = io.open(log_file, "a")
+        if log_f then
+          log_f:write(table.concat(term_lines, "\n") .. "\n")
+          log_f:close()
         end
+
         -- Update exit code and duration in place using vim.fn for efficiency
         local lines = vim.fn.readfile(log_file)
         local replaced = 0
@@ -160,7 +157,20 @@ function brt.execute_with_quickfix(cmd, cmd_key)
         redirect_focus_to_normal_window()
       end)
     end,
-  })
+  }
+
+  job_opts.term = true
+
+  vim.fn.jobstart(shell_cmd, job_opts)
+
+  -- Set terminal mode escape keymaps
+  vim.api.nvim_buf_set_keymap(term_buf, 't', '<C-\\><C-n>', '<C-\\><C-n>',
+    { noremap = true, silent = true, desc = "Exit terminal mode" })
+  vim.api.nvim_buf_set_keymap(term_buf, 't', '<Esc>', '<C-\\><C-n>',
+    { noremap = true, silent = true, desc = "Exit terminal mode" })
+
+  -- Auto-return focus to previous window so leader key works
+  redirect_focus_to_normal_window()
 end
 
 function brt.handle_quit()
@@ -238,34 +248,67 @@ function brt.check_and_execute(op)
   -- Get the last command for this type as default
   local last_cmd = brt_db.get_last_command(cmd_key)
 
-  -- Use fzf-lua for input
+  -- Save and set low timeoutlen to prevent Space key delay from terminal-mode mappings
+  local saved_timeoutlen = vim.o.timeoutlen
+  vim.o.timeoutlen = 50  -- Very low timeout so Space is instant
+
+  -- Helper to cleanup picker (close border window and restore timeoutlen)
+  local border_win = nil  -- Forward declare for cleanup function
+  local function cleanup_picker()
+    if border_win and vim.api.nvim_win_is_valid(border_win) then
+      vim.api.nvim_win_close(border_win, true)
+    end
+    vim.o.timeoutlen = saved_timeoutlen
+  end
+
+  -- Calculate dimensions for border wrapper
+  local editor_width = vim.o.columns
+  local editor_height = vim.o.lines
+  local win_width = math.floor(editor_width * 0.80)
+  local win_height = math.floor(editor_height * 0.70)
+  local win_row = math.floor((editor_height - win_height) / 2)
+  local win_col = math.floor((editor_width - win_width) / 2)
+
+  -- Create outer border window FIRST (behind fzf-lua)
+  local border_buf = vim.api.nvim_create_buf(false, true)
+  border_win = vim.api.nvim_open_win(border_buf, false, {
+    relative = "editor",
+    width = win_width,
+    height = win_height,
+    row = win_row,
+    col = win_col,
+    style = "minimal",
+    border = "rounded",
+    title = " 🔨 BRT - Build Run Test ",
+    title_pos = "center",
+    zindex = 40,
+  })
+
+  -- Use fzf-lua for input (inside the border)
   local fzf_lua = require("fzf-lua")
   fzf_lua.fzf_exec(display_items, {
-    prompt = "Command> ",
+    prompt = "❯ ",
     query = last_cmd or "",
     winopts = {
-      height     = 0.7,
-      width      = 0.8,
-      row        = 0.5,
-      col        = 0.5,
-      border     = "rounded",
+      height = win_height - 2,
+      width = win_width - 2,
+      row = win_row + 1,
+      col = win_col + 1,
+      border = "none",
       fullscreen = false,
+      backdrop = 100,  -- fully transparent (we have our own border)
     },
-    -- defaults = {
-    --     multiline = 1
-    -- },
     fzf_opts = {
-      -- Start with no selection
       ["--no-select-1"] = "",
-      ["--nth"] = brt_util.pick_order,
-      ["--delimiter"] = "|",
-      ["--ghost"] = "...",
-      ["--header"] = "EXIT CODE| TYPE|DURATION|COUNT|COMMAND",
-      ["--wrap"] = "",
-      ["--highlight-line"] = "",
+      ["--nth"] = brt_util.pick_order .. "..",
+      ["--delimiter"] = " ",
+      ["--ghost"] = "type to search or enter new command...",
+      ["--header"] = "  TYPE  DURATION COUNT EXIT COMMAND\n <enter>: run  <ctrl-y>: copy  <ctrl-u>: clear  <esc>: quit",
+      ["--header-first"] = "",
       ["--ansi"] = "",
-      ["--border-label"] = "HI",
-      ["--border"] = "top"
+      ["--no-border"] = "",
+      ["--pointer"] = "▶",
+      ["--marker"] = "●",
     },
     no_filter = false,
     keymap = {
@@ -299,6 +342,8 @@ function brt.check_and_execute(op)
           input = opts.query
         end
 
+        cleanup_picker()
+
         if not input or brt_util.only_spaces(input) then
           return
         end
@@ -307,6 +352,12 @@ function brt.check_and_execute(op)
         brt.execute_with_quickfix(input, cmd_key)
       end,
     },
+  })
+
+  -- Cleanup when fzf closes (on escape/quit)
+  vim.api.nvim_create_autocmd("WinClosed", {
+    callback = cleanup_picker,
+    once = true,
   })
 end
 

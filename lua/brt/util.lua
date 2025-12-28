@@ -1,7 +1,7 @@
 local util = {}
 util.data_file = vim.fn.stdpath("data") .. "/brt_local_data.json"
 
-util.pick_order = 5
+util.pick_order = 6  -- command is now the 6th column (added exit code column)
 util.default_list = {
   -- Rust
   rust = {
@@ -129,4 +129,5 @@ util.terminal_available = function(bufnr)
 
   return true
 end
+
 return util
