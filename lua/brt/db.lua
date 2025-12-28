@@ -191,7 +191,7 @@ function db.format_time_friendly(duration)
   return str_time
 end
 
--- Format a command record for display in fzf-lua
+-- Format a command record for display in fzf-lua (Atuin-style)
 -- @param record table: Command record with all fields
 -- @return string: Formatted string for display
 function db.format_command_for_display(record)
@@ -207,22 +207,46 @@ function db.format_command_for_display(record)
   local time_str = db.format_time_friendly(duration)
   local type_str = cmd_type:gsub("_command", "")
 
-  if (times_inputted == 0) then
-    exit_code = "\27[90m" .. string.format("%9s", "~~~") .. "\27[0m" -- Gray for never run
-    time_str = string.format("%8s", time_str)
-  elseif (exit_code ~= "0") then
-    exit_code = "\27[31m" .. string.format("%9s", exit_code) .. "\27[0m" -- Red for failure
-    time_str = "\27[31m" .. string.format("%8s", time_str) .. "\27[0m" -- Red for failure
+  -- Color codes
+  local green = "\27[32m"
+  local red = "\27[31m"
+  local yellow = "\27[33m"
+  local cyan = "\27[36m"
+  local gray = "\27[90m"
+  local reset = "\27[0m"
+
+  local exit_display, time_display, type_display, count_display, code_display
+
+  if times_inputted == 0 then
+    -- Never run - gray styling
+    exit_display = gray .. "•" .. reset
+    time_display = gray .. string.format("%7s", "—") .. reset
+    type_display = gray .. string.format("%-5s", type_str) .. reset
+    count_display = gray .. "new" .. reset
+    code_display = gray .. string.format("%3s", "—") .. reset
+  elseif exit_code ~= "0" then
+    -- Failed - red styling
+    exit_display = red .. "✗" .. reset
+    time_display = red .. string.format("%7s", time_str) .. reset
+    type_display = yellow .. string.format("%-5s", type_str) .. reset
+    count_display = gray .. string.format("%3dx", times_inputted) .. reset
+    code_display = red .. string.format("%3s", exit_code) .. reset
   else
-    exit_code = "\27[32m" .. string.format("%9s", exit_code) .. "\27[0m" -- Green for success
-    time_str = "\27[32m" .. string.format("%8s", time_str) .. "\27[0m" -- Red for failure
+    -- Success - green styling
+    exit_display = green .. "✓" .. reset
+    time_display = green .. string.format("%7s", time_str) .. reset
+    type_display = cyan .. string.format("%-5s", type_str) .. reset
+    count_display = gray .. string.format("%3dx", times_inputted) .. reset
+    code_display = green .. string.format("%3s", "0") .. reset
   end
 
-  return string.format("%s|%5s|%s|%4dx|%s",
-    exit_code,
-    type_str,
-    time_str,
-    times_inputted,
+  -- Use space as delimiter for compact display
+  return string.format("%s %s %s %s %s %s",
+    exit_display,
+    type_display,
+    time_display,
+    count_display,
+    code_display,
     command
   )
 end
@@ -235,15 +259,22 @@ function db.parse_display_string(display_str)
     return ""
   end
 
-  -- New format: type | time | count | command
-  -- Extract everything after the last |
-  local parts = vim.split(display_str, "|", { plain = true })
-  if #parts >= brt_util.pick_order then
-    return vim.trim(parts[brt_util.pick_order])
+  -- Format: status type duration count exit_code command (space-separated)
+  -- Skip first 5 fields to get the command (which may contain spaces)
+  local count = 0
+  local cmd_start = 1
+  for i = 1, #display_str do
+    if display_str:sub(i, i) == " " then
+      count = count + 1
+      if count == 5 then
+        cmd_start = i + 1
+        break
+      end
+    end
   end
 
-  -- Fallback: return trimmed string
-  return vim.trim(display_str)
+  local command = display_str:sub(cmd_start)
+  return vim.trim(command)
 end
 
 -- Clear all commands from database
