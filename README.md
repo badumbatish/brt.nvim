@@ -1,86 +1,101 @@
-# BRT
-Hi everyone! Welcome to my first plugin: BRT (Build, Run, and Test, (and Debug))
+# BRT.nvim
 
-The plugin helps automate/alleviate the process of building, running and testing your code.
+**Build, Run, Test (and Debug)** for Neovim.
 
-Once the commands finish running, it pipes errors (only error for now) into a quickfix list for you.
+## What is this?
 
-It also remembers every prompt you give it for all 4 commands, just like atuin.
-## Demo
-See the plugin in action in the following video.
+BRT lets you build, run, and test your code without leaving Neovim. No more switching to a terminal tab, running commands, then switching back to fix errors.
 
-https://youtu.be/sIxkQYV4yMM
+If you work on large codebases like LLVM, Clang, or anything that requires constant terminal usage, you know how annoying the context switch is. BRT keeps everything in your editor.
 
-## Keymaps
+## Features
 
-The default keymaps are:
-```
-<leader>b - Build
-<leader>r - Run (the executable)
-<leader>d - Debug
-<leader>t - Test
-<leader>q - Quit the brt tab (it acts as a :q)
-<leader>le - Populate the quickfix list with errors from all the buffers.
-<leader>lw - Populate the quickfix list with warnings from all the current buffers.
-<leader>ld - Populate the quickfix list with lldb stacktrace from current BRT-spawn terminal (stacktrace between two `(lldb) ...`)
+- **Command history** — BRT remembers every command you run (stored in SQLite). Similar to [atuin](https://github.com/atuinsh/atuin), you can fuzzy search through your history.
+
+- **Quickfix integration** — When your build fails, BRT automatically parses the terminal output and pipes errors into the quickfix list. Press `n` within the quickfix to jump straight to the file and line where the error occurred. No more manually scrolling through terminal output trying to find what broke.
+
+- **LLDB stacktrace support** — If you're debugging, `<leader>ld` extracts lldb stacktraces into quickfix so you can jump to the relevant frames.
+
+- **Shell expansion works** — Globs, environment variables, pipes — it all works like you'd expect.
+
+## Requirements
+
+- Neovim 0.9+
+- [fzf](https://github.com/junegunn/fzf) 0.56.0+
+- [fzf-lua](https://github.com/ibhagwan/fzf-lua)
+- [sqlite.lua](https://github.com/kkharji/sqlite.lua)
+
+**Note:** Ubuntu repos have an outdated fzf version. You'll need to install fzf manually if you're on Ubuntu:
+```bash
+# Install latest fzf manually
+git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
+~/.fzf/install
 ```
 
 ## Installation
-For lazy.nvim   
-```lua  
-return {
- "badumbatish/brt.nvim",
-  dependencies = {
-    "ibhagwan/fzf-lua",  -- add fzf-lua as a dependency
-    'kkharji/sqlite.lua', -- sqlite is also needed
-  },
 
- config = function()
-   require('brt').setup()
- end
+```lua
+-- lazy.nvim
+return {
+  "badumbatish/brt.nvim",
+  dependencies = {
+    "ibhagwan/fzf-lua",
+    "kkharji/sqlite.lua",
+  },
+  config = function()
+    require("brt").setup()
+  end,
 }
 ```
+
+## Keymaps
+
+| Key | What it does |
+|-----|--------------|
+| `<leader>b` | Build |
+| `<leader>r` | Run |
+| `<leader>t` | Test |
+| `<leader>d` | Debug |
+| `<leader>q` | Close BRT window |
+| `<leader>le` | Load errors into quickfix |
+| `<leader>lw` | Load warnings into quickfix |
+| `<leader>ld` | Load lldb stacktrace into quickfix |
+| `<leader>ll` | Open BRT log |
+
+When the picker is open:
+- `Enter` — run the command
+- `Ctrl-y` — copy command to input
+- `Ctrl-u` — clear input
+- `Esc` — close
 
 ## Configuration
-You can also change 
 
-- The keymap used to invoke brt.nvim.
-
-The full fledged default is here (or you can check the most up to date at lua/brt/config.lua):
 ```lua
-
-return {
-    "badumbatish/brt.nvim",
-    -- -- Uncomment these two lines to contribute and develop
-    -- -- Remember to create Developer/nvim_proj and clone your fork
-    -- dir = "~/Developer/nvim_proj/brt.nvim",
-    -- dev = { true },
-
-    config = function()
-
-    local brt_config = {}
-    
-    -- default config, you don't need to change anything
-    brt_config.keymaps = {
-        ["build"] = "<leader>b",
-        ["run"] = "<leader>r",
-        ["test"] = "<leader>t",
-        ["debug"] = "<leader>d",
-        ["quit_tab"] = "<leader>q",
-        ["quickfix_error"] = "<leader>le",
-        ["quickfix_warning"] = "<leader>lw"
-        ["quickfix_debug_terminal"] = "<leader>ld",
-    }
-
-    require('brt').setup(brt_config)
-end
-}
+require("brt").setup({
+  keymaps = {
+    ["build"] = "<leader>b",
+    ["run"] = "<leader>r",
+    ["test"] = "<leader>t",
+    ["debug"] = "<leader>d",
+    ["quit_tab"] = "<leader>q",
+    ["show_log"] = "<leader>ll",
+    ["quickfix_error"] = "<leader>le",
+    ["quickfix_warning"] = "<leader>lw",
+    ["quickfix_debug_terminal"] = "<leader>ld",
+  },
+})
 ```
 
-## Contributions
-Please feel free to contribute to the plugin. I am open to suggestions and improvements.
+## Contributing
 
-Potential todo list includes:
-- [ ] Add more project types: OCaml, Haskell, gleam, java, etc...
-- [ ] Non-stopping commands: run a series of commands and only stop if one fails
- 
+Open to suggestions and PRs. Some ideas:
+- More project type templates
+- Command chaining (run multiple commands, stop on failure)
+
+## License
+
+MIT
+
+## Credits
+
+Made by [@badumbatish](https://github.com/badumbatish)
