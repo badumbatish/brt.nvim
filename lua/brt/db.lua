@@ -259,22 +259,28 @@ function db.parse_display_string(display_str)
     return ""
   end
 
-  -- Format: status type duration count exit_code command (space-separated)
-  -- Skip first 5 fields to get the command (which may contain spaces)
-  local count = 0
-  local cmd_start = 1
-  for i = 1, #display_str do
-    if display_str:sub(i, i) == " " then
-      count = count + 1
-      if count == 5 then
-        cmd_start = i + 1
-        break
-      end
-    end
+  -- Strip ANSI escape codes first (colors mess up parsing)
+  local stripped = display_str:gsub("\27%[[%d;]*m", "")
+
+  -- Format: status type duration count exit_code command
+  -- Split by whitespace, skip first 5 fields, rest is command
+  local fields = {}
+  for field in stripped:gmatch("%S+") do
+    table.insert(fields, field)
   end
 
-  local command = display_str:sub(cmd_start)
-  return vim.trim(command)
+  -- Command starts at field 6 (after status, type, duration, count, exit_code)
+  if #fields < 6 then
+    return vim.trim(stripped)
+  end
+
+  -- Rejoin everything from field 6 onwards
+  local command_parts = {}
+  for i = 6, #fields do
+    table.insert(command_parts, fields[i])
+  end
+
+  return table.concat(command_parts, " ")
 end
 
 -- Clear all commands from database

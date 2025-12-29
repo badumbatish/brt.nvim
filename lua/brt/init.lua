@@ -303,7 +303,7 @@ function brt.check_and_execute(op)
       ["--nth"] = brt_util.pick_order .. "..",
       ["--delimiter"] = " ",
       ["--ghost"] = "type to search or enter new command...",
-      ["--header"] = "  TYPE  DURATION COUNT EXIT COMMAND\n <enter>: run  <ctrl-y>: copy  <ctrl-u>: clear  <esc>: quit",
+      ["--header"] = "  TYPE  DURATION COUNT EXIT COMMAND\n <enter>: run  <ctrl-y>: copy to clipboard  <ctrl-u>: clear  <esc>: quit",
       ["--header-first"] = "",
       ["--ansi"] = "",
       ["--no-border"] = "",
@@ -320,15 +320,15 @@ function brt.check_and_execute(op)
     },
     input = true,
     actions = {
-      ["ctrl-y"] = {
-        function(selected, opts)
-          if selected and selected[1] then
-            local command = brt_db.parse_display_string(selected[1])
-            opts.query = command
-            fzf_lua.resume()
-          end
-        end,
-      },
+      ["ctrl-y"] = function(selected)
+        if selected and selected[1] then
+          local command = brt_db.parse_display_string(selected[1])
+          -- Copy command to clipboard and notify
+          vim.fn.setreg("+", command)
+          vim.fn.setreg('"', command)
+          vim.notify("Copied: " .. command, vim.log.levels.INFO)
+        end
+      end,
       ["default"] = function(selected, opts)
         local input
 
