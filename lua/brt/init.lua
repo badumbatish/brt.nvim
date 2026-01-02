@@ -249,6 +249,8 @@ function brt.check_and_execute(op)
       row        = 0.5,
       col        = 0.5,
       border     = "rounded",
+      title      = " BRT.nvim ",
+      title_pos  = "center",
       fullscreen = false,
     },
     -- defaults = {
@@ -264,8 +266,6 @@ function brt.check_and_execute(op)
       ["--wrap"] = "",
       ["--highlight-line"] = "",
       ["--ansi"] = "",
-      ["--border-label"] = "HI",
-      ["--border"] = "top"
     },
     no_filter = false,
     keymap = {
