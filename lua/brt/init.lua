@@ -326,7 +326,45 @@ end
 
 brt.open_log = function()
   if vim.fn.filereadable(log_file) == 1 then
-    vim.cmd("tabnew " .. log_file)
+    -- Find or create buffer for the log file
+    local buf = vim.fn.bufnr(log_file)
+    if buf == -1 then
+      -- Buffer doesn't exist, create and load it
+      vim.cmd('badd ' .. vim.fn.fnameescape(log_file))
+      buf = vim.fn.bufnr(log_file)
+      -- Disable swapfile to avoid swap file warnings
+      vim.api.nvim_set_option_value('swapfile', false, { buf = buf })
+      vim.fn.bufload(buf)
+    else
+      -- Buffer exists, make sure it's loaded
+      if not vim.api.nvim_buf_is_loaded(buf) then
+        vim.api.nvim_set_option_value('swapfile', false, { buf = buf })
+        vim.fn.bufload(buf)
+      end
+    end
+
+    -- Calculate window dimensions (95% of screen)
+    local ui = vim.api.nvim_list_uis()[1]
+    local width = math.floor(ui.width * 0.95)
+    local height = math.floor(ui.height * 0.95)
+    local row = math.floor((ui.height - height) / 2)
+    local col = math.floor((ui.width - width) / 2)
+
+    -- Create floating window
+    local win = vim.api.nvim_open_win(buf, true, {
+      relative = 'editor',
+      width = width,
+      height = height,
+      row = row,
+      col = col,
+      border = 'rounded',
+      title = ' BRT Log ',
+      title_pos = 'center',
+    })
+
+    -- -- Set keymaps to close window with 'q' or Esc
+    -- vim.keymap.set('n', 'q', '<cmd>close<CR>', {buffer = buf, silent = true})
+    vim.keymap.set('n', '<Esc>', '<cmd>close<CR>', {buffer = buf, silent = true})
   else
     vim.notify("No BRT log found!", vim.log.levels.WARN)
   end
