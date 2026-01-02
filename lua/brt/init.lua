@@ -244,8 +244,8 @@ function brt.check_and_execute(op)
     prompt = "Command> ",
     query = last_cmd or "",
     winopts = {
-      height     = 0.7,
-      width      = 0.8,
+      height     = 0.75,
+      width      = 0.9,
       row        = 0.5,
       col        = 0.5,
       border     = "rounded",
