@@ -350,6 +350,9 @@ brt.open_log = function()
     local row = math.floor((ui.height - height) / 2)
     local col = math.floor((ui.width - width) / 2)
 
+    -- Create pastel sky blue border highlight
+    vim.api.nvim_set_hl(0, 'BRTLogBorder', { fg = '#AED6F1' })  -- Pastel sky blue
+
     -- Create floating window
     local win = vim.api.nvim_open_win(buf, true, {
       relative = 'editor',
@@ -361,6 +364,9 @@ brt.open_log = function()
       title = ' BRT Log ',
       title_pos = 'center',
     })
+
+    -- Apply pastel sky blue border
+    vim.wo[win].winhighlight = 'FloatBorder:BRTLogBorder'
 
     -- -- Set keymaps to close window with 'q' or Esc
     -- vim.keymap.set('n', 'q', '<cmd>close<CR>', {buffer = buf, silent = true})
