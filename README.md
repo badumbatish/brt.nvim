@@ -22,7 +22,8 @@ The default keymaps are:
 <leader>q - Quit the brt tab (it acts as a :q)
 <leader>le - Populate the quickfix list with errors from all the buffers.
 <leader>lw - Populate the quickfix list with warnings from all the current buffers.
-<leader>ld - Populate the quickfix list with lldb stacktrace from current BRT-spawn terminal (stacktrace between two `(lldb) ...`)
+<leader>ld - Populate the quickfix list with lldb stacktrace from current BRT-spawn terminal (stacktrace between two `(lldb) ...`).
+<leader>ll - Open a floating window for inspection of the log created from BRT's last run command.
 ```
 
 ## Installation
@@ -53,7 +54,7 @@ return {
     "badumbatish/brt.nvim",
     -- -- Uncomment these two lines to contribute and develop
     -- -- Remember to create Developer/nvim_proj and clone your fork
-    -- dir = "~/Developer/nvim_proj/brt.nvim",
+    -- dir = "~/Developer/nvim_proj/brt.nvim", or your own folder where brt.nvim is git-cloned
     -- dev = { true },
 
     config = function()
@@ -62,13 +63,14 @@ return {
     
     -- default config, you don't need to change anything
     brt_config.keymaps = {
-        ["build"] = "<leader>b",
-        ["run"] = "<leader>r",
-        ["test"] = "<leader>t",
-        ["debug"] = "<leader>d",
-        ["quit_tab"] = "<leader>q",
+        ["build"] = "<leader>b", -- build the project
+        ["run"] = "<leader>r", -- run the project
+        ["test"] = "<leader>t", -- test the project
+        ["debug"] = "<leader>d", -- debug the project (this correctly enables <leader>ld)
+        ["quit_tab"] = "<leader>q", -- quit quickfix list and/or terminal
+        ["show_log"] = "<leader>ll",
+        ["quickfix_warning"] = "<leader>lw",
         ["quickfix_error"] = "<leader>le",
-        ["quickfix_warning"] = "<leader>lw"
         ["quickfix_debug_terminal"] = "<leader>ld",
     }
 
@@ -81,6 +83,6 @@ end
 Please feel free to contribute to the plugin. I am open to suggestions and improvements.
 
 Potential todo list includes:
-- [ ] Add more project types: OCaml, Haskell, gleam, java, etc...
+- [ ] Testing: tests are much needed but I'm not quite sure where to start.
 - [ ] Non-stopping commands: run a series of commands and only stop if one fails
  
