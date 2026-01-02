@@ -281,8 +281,8 @@ function brt.check_and_execute(op)
         function(selected, opts)
           if selected and selected[1] then
             local command = brt_db.parse_display_string(selected[1])
-            opts.query = command
-            fzf_lua.resume()
+            opts.__call_opts.query = command
+            fzf_lua.resume(opts)
           end
         end,
       },
