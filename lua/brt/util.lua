@@ -1,6 +1,7 @@
 local util = {}
 util.data_file = vim.fn.stdpath("data") .. "/brt_local_data.json"
 
+util.timeout_delay = 50
 util.pick_order = 5
 util.default_list = {
   -- Rust

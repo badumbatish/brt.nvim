@@ -238,6 +238,13 @@ function brt.check_and_execute(op)
   -- Get the last command for this type as default
   local last_cmd = brt_db.get_last_command(cmd_key)
 
+  local saved_timeoutlen = vim.o.timeoutlen
+  vim.o.timeoutlen = brt_util.timeout_delay  -- Very low timeout so Space is instant
+
+  -- Helper to cleanup picker (close border window and restore timeoutlen)
+  local function cleanup_picker()
+    vim.o.timeoutlen = saved_timeoutlen
+  end
   -- Use fzf-lua for input
   local fzf_lua = require("fzf-lua")
   fzf_lua.fzf_exec(display_items, {
@@ -307,6 +314,12 @@ function brt.check_and_execute(op)
         brt.execute_with_quickfix(input, cmd_key)
       end,
     },
+  })
+
+  -- Apparently fzf-lua creates a windows when we do fzf_exec, we just gotta restore the delay here
+  vim.api.nvim_create_autocmd("WinClosed", {
+    callback = cleanup_picker,
+    once = true, -- runs it this one time and then get out
   })
 end
 
