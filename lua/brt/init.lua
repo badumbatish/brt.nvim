@@ -186,7 +186,7 @@ function brt.handle_quit()
   while true do
     local bufnr = vim.api.nvim_get_current_buf()
     local ok, kind = is_quittable(bufnr)
-     if not ok then break end
+    if not ok then break end
     if kind == "terminal" then
       local chan = vim.b[bufnr].terminal_job_id
       if chan then
@@ -239,7 +239,7 @@ function brt.check_and_execute(op)
   local last_cmd = brt_db.get_last_command(cmd_key)
 
   local saved_timeoutlen = vim.o.timeoutlen
-  vim.o.timeoutlen = brt_util.timeout_delay  -- Very low timeout so Space is instant
+  vim.o.timeoutlen = brt_util.timeout_delay -- Very low timeout so Space is instant
 
   -- Helper to cleanup picker (close border window and restore timeoutlen)
   local function cleanup_picker()
@@ -277,9 +277,11 @@ function brt.check_and_execute(op)
     no_filter = false,
     keymap = {
       fzf = {
-        ["ctrl-u"] = "clear-query",
-        ["ctrl-n"] = "down",
-        ["ctrl-p"] = "up",
+        ["ctrl-u"]     = "clear-query",
+        ["ctrl-n"]     = "down",
+        ["ctrl-p"]     = "up",
+        ["ctrl-left"]  = "backward-word",
+        ["ctrl-right"] = "forward-word",
       },
     },
     input = true,
@@ -293,8 +295,14 @@ function brt.check_and_execute(op)
           end
         end,
       },
+      ["tab"] = function(selected, opts)
+        local query = opts.query or ""
+        opts.__call_opts.query = query
+        fzf_lua.resume(opts)
+      end,
       ["default"] = function(selected, opts)
         local input
+
 
         -- If user selected an item, parse it to get the command
         if selected and selected[1] then
@@ -323,7 +331,6 @@ function brt.check_and_execute(op)
   })
 end
 
-
 brt.open_log = function()
   if vim.fn.filereadable(log_file) == 1 then
     -- Find or create buffer for the log file
@@ -351,7 +358,7 @@ brt.open_log = function()
     local col = math.floor((ui.width - width) / 2)
 
     -- Create pastel sky blue border highlight
-    vim.api.nvim_set_hl(0, 'BRTLogBorder', { fg = '#AED6F1' })  -- Pastel sky blue
+    vim.api.nvim_set_hl(0, 'BRTLogBorder', { fg = '#AED6F1' }) -- Pastel sky blue
 
     -- Create floating window
     local win = vim.api.nvim_open_win(buf, true, {
@@ -370,7 +377,7 @@ brt.open_log = function()
 
     -- -- Set keymaps to close window with 'q' or Esc
     -- vim.keymap.set('n', 'q', '<cmd>close<CR>', {buffer = buf, silent = true})
-    vim.keymap.set('n', '<Esc>', '<cmd>close<CR>', {buffer = buf, silent = true})
+    vim.keymap.set('n', '<Esc>', '<cmd>close<CR>', { buffer = buf, silent = true })
   else
     vim.notify("No BRT log found!", vim.log.levels.WARN)
   end
@@ -437,7 +444,6 @@ function brt.set_keymaps(keymaps)
     brt_config.keymaps[key] = value
   end
 end
-
 
 vim.api.nvim_create_user_command("BRTClear", function()
   -- Clear database
