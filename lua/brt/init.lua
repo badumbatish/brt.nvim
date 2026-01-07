@@ -246,6 +246,9 @@ function brt.check_and_execute(op)
     vim.o.timeoutlen = saved_timeoutlen
   end
   -- Use fzf-lua for input
+  local cycle = 0
+  local cycle_base = nil
+  local cycle_modified = nil
   local fzf_lua = require("fzf-lua")
   fzf_lua.fzf_exec(display_items, {
     prompt = "Command> ",
@@ -296,13 +299,50 @@ function brt.check_and_execute(op)
         end,
       },
       ["tab"] = function(selected, opts)
-        local query = opts.query or ""
-        opts.__call_opts.query = query
+        local function get_last_word(str)
+          return str:match("(%S+)$") or ""
+        end
+        local function mixed_complete(query_cmd)
+          local seen = {}
+          local out = {}
+
+          local function add(list)
+            for _, v in ipairs(list) do
+              if not seen[v] then
+                seen[v] = true
+                table.insert(out, v)
+              end
+            end
+          end
+          local x = vim.opt.wildoptions
+          vim.opt.wildoptions = "fuzzy"
+          add(vim.fn.getcompletion(query_cmd, "shellcmd"))
+          add(vim.fn.getcompletion(query_cmd, "shellcmdline"))
+          vim.opt.wildoptions = x
+          local n = #out
+
+          if n == 0 then
+            return get_last_word(query_cmd)
+          end
+          local cmd = out[(cycle % n) + 1]
+          cycle = cycle + 1
+
+          return cmd
+        end
+        local function replace_last_word(str, replacement)
+          -- Match everything up to the last whitespace
+          local prefix = str:match("^(.*%s)") or ""
+          return prefix .. replacement
+        end
+        if cycle_modified == nil or cycle_modified ~= opts.__call_opts.query then
+          cycle_base = opts.__call_opts.query
+        end
+        opts.__call_opts.query = replace_last_word(cycle_base, mixed_complete(cycle_base))
+        cycle_modified = opts.__call_opts.query
         fzf_lua.resume(opts)
       end,
       ["default"] = function(selected, opts)
         local input
-
 
         -- If user selected an item, parse it to get the command
         if selected and selected[1] then
