@@ -437,26 +437,26 @@ function brt.setup(opts)
 
   vim.keymap.set('n', brt_config.keymaps["build"],
     '<cmd>lua require("brt").check_and_execute("build_command")<CR>',
-    { noremap = true, silent = true })
+    { noremap = true, silent = true, desc = "Prompt and execute BRT build command" })
   vim.api.nvim_set_keymap('n', brt_config.keymaps["run"],
     '<cmd>lua require("brt").check_and_execute("run_command")<CR>',
-    { noremap = true, silent = true })
+    { noremap = true, silent = true, desc = "Prompt and execute BRT run command" })
   vim.api.nvim_set_keymap('n', brt_config.keymaps["test"],
     '<cmd>lua require("brt").check_and_execute("test_command")<CR>',
-    { noremap = true, silent = true })
+    { noremap = true, silent = true, desc = "Prompt and execute BRT test command" })
   vim.api.nvim_set_keymap('n', brt_config.keymaps["debug"],
     '<cmd>lua require("brt").check_and_execute("debug_command")<CR>',
-    { noremap = true, silent = true })
+    { noremap = true, silent = true, desc = "Prompt and execute BRT debug command" })
   vim.api.nvim_set_keymap('n', brt_config.keymaps["quit_tab"], '<cmd>lua require("brt").handle_quit()<CR>',
-    { noremap = true, silent = true })
+    { noremap = true, silent = true, desc = "Special :q hanlding for BRT" })
   vim.api.nvim_set_keymap('n', brt_config.keymaps["show_log"], '<cmd>lua require("brt").open_log()<CR>',
-    { noremap = true, silent = true })
+    { noremap = true, silent = true, desc = "Open log for BRT" })
   vim.keymap.set('n', brt_config.keymaps["quickfix_warning"],
     function() brt_qf.lsp_to_quickfix("W", false) end,
-    { noremap = true, silent = true })
+    { noremap = true, silent = true, desc = "Populate quickfix with warnings from LSP"})
   vim.keymap.set('n', brt_config.keymaps["quickfix_error"],
     function() brt_qf.lsp_to_quickfix("E", false) end,
-    { noremap = true, silent = true })
+    { noremap = true, silent = true, desc = "Populate quickfix with errors from LSP" })
   vim.keymap.set('n', brt_config.keymaps["quickfix_debug_terminal"],
     function()
       -- Check if terminal buffer exists
@@ -475,7 +475,7 @@ function brt.setup(opts)
         vim.print("No parsable error from the debug session")
       end
     end,
-    { noremap = true, silent = true, desc = "quickfix_debug_terminal" })
+    { noremap = true, silent = true, desc = "Populate quickfix from stack trace of lldb" })
 end
 
 function brt.set_keymaps(keymaps)
