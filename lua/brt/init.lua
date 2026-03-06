@@ -140,6 +140,7 @@ function brt.execute_with_quickfix(cmd, cmd_key)
 
         if not bool_success then
           brt_qf.set_quickfix_from_output(output_clean)
+          vim.fn.setreg('+', output_clean)
         end
         -- Save command to database with success status
         brt_db.save_command(cmd, cmd_key, exit_code, time_stamp, duration_s)
@@ -276,6 +277,8 @@ function brt.check_and_execute(op)
       ["--wrap"] = "",
       ["--highlight-line"] = "",
       ["--ansi"] = "",
+      ["--scheme"] = "history",
+      ["--tiebreak"] = "length",
     },
     no_filter = false,
     keymap = {
@@ -289,15 +292,13 @@ function brt.check_and_execute(op)
     },
     input = true,
     actions = {
-      ["ctrl-y"] = {
-        function(selected, opts)
-          if selected and selected[1] then
-            local command = brt_db.parse_display_string(selected[1])
-            opts.__call_opts.query = command
-            fzf_lua.resume(opts)
-          end
-        end,
-      },
+      ["ctrl-y"] = function(selected, opts)
+        if selected and selected[1] then
+          local command = brt_db.parse_display_string(selected[1])
+          opts.__call_opts.query = command
+          fzf_lua.resume(opts)
+        end
+      end,
       ["tab"] = function(selected, opts)
         local function get_last_word(str)
           return str:match("(%S+)$") or ""
