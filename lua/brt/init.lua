@@ -280,6 +280,7 @@ function brt.check_and_execute(op)
     no_filter = false,
     keymap = {
       fzf = {
+        ["ctrl-y"]     = "transform-query(printf '%s' {5..})",
         ["ctrl-u"]     = "clear-query",
         ["ctrl-n"]     = "down",
         ["ctrl-p"]     = "up",
@@ -289,15 +290,6 @@ function brt.check_and_execute(op)
     },
     input = true,
     actions = {
-      ["ctrl-y"] = {
-        function(selected, opts)
-          if selected and selected[1] then
-            local command = brt_db.parse_display_string(selected[1])
-            opts.__call_opts.query = command
-            fzf_lua.resume(opts)
-          end
-        end,
-      },
       ["tab"] = function(selected, opts)
         local function get_last_word(str)
           return str:match("(%S+)$") or ""
