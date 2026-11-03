@@ -164,6 +164,23 @@ function brt.execute_with_quickfix(cmd, cmd_key)
 end
 
 function brt.handle_quit()
+  local function quit()
+    local ok, err = pcall(vim.cmd, "q")
+    if ok then
+      return true
+    end
+    if tostring(err):find("E37:", 1, true) then
+      -- nothing written, so can't quit
+      ok, err = pcall(vim.cmd, "q!")
+      if ok then
+        return true
+      end
+    end
+    local msg = tostring(err):match("Vim%(quit%):(.*)") or tostring(err)
+    vim.notify(msg, vim.log.levels.ERROR)
+    return false
+  end
+
   local function is_quittable(bufnr)
     local name = vim.api.nvim_buf_get_name(bufnr)
     local buftype = vim.api.nvim_get_option_value("buftype", { buf = bufnr })
@@ -199,12 +216,14 @@ function brt.handle_quit()
       end
     end
 
-    vim.cmd("q")
+    if not quit() then
+      return
+    end
     has_quit = true
   end
 
   if (not has_quit) then
-    vim.cmd("q")
+    quit()
   end
 end
 
